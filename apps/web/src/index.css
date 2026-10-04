@@ -1,0 +1,177 @@
+@import "@fontsource/urbanist/400.css";
+@import "@fontsource/urbanist/500.css";
+@import "@fontsource/urbanist/600.css";
+@import "@fontsource/noto-sans-arabic/400.css";
+@import "@fontsource/noto-sans-arabic/500.css";
+@import "@fontsource/noto-sans-arabic/600.css";
+@import "tailwindcss";
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-danger: var(--danger);
+  --color-lavender: #d0ccff;
+  --color-coral: #f39e9e;
+}
+
+:root {
+  color-scheme: light;
+  --canvas: #eeedf2;
+  --surface: rgb(255 255 255 / 68%);
+  --ink: #242424;
+  --muted: #666371;
+  --line: rgb(80 66 110 / 12%);
+  --danger: #b42335;
+  --frame: rgb(255 255 255 / 38%);
+  --glow-opacity: .62;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #19181f;
+  --surface: rgb(48 45 59 / 76%);
+  --ink: #f6f4fb;
+  --muted: #b9b3c8;
+  --line: rgb(218 210 255 / 15%);
+  --danger: #ffb4bf;
+  --frame: rgb(31 29 40 / 58%);
+  --glow-opacity: .17;
+}
+
+@layer base {
+  body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: 'Urbanist', 'Noto Sans Arabic', sans-serif;
+    font-weight: 500;
+  }
+
+  html[lang="ar"] body {
+    font-family: 'Noto Sans Arabic', 'Urbanist', sans-serif;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  button,
+  a,
+  input,
+  select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+    opacity: .45;
+  }
+
+  :focus-visible {
+    outline: 2px solid #8277d7;
+    outline-offset: 3px;
+  }
+
+  option {
+    background: var(--canvas);
+    color: var(--ink);
+  }
+}
+
+@layer components {
+  .page-backdrop {
+    position: relative;
+    isolation: isolate;
+    background: var(--canvas);
+  }
+
+  .page-backdrop::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: var(--glow-opacity);
+    background:
+      radial-gradient(
+        ellipse at 15% 15%,
+        #d0ccff 0,
+        transparent 55%
+      ),
+      radial-gradient(
+        ellipse at 90% 65%,
+        #f39e9e 0,
+        transparent 50%
+      );
+  }
+
+  .workspace-frame {
+    background: var(--frame);
+    border: 1px solid var(--line);
+    box-shadow: 0 25px 100px rgb(34 25 55 / 5%);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+  }
+
+  .glass {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 8px 30px rgb(34 25 55 / 3%);
+  }
+
+  .control {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 10px 14px;
+    border-radius: 13px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    font-size: 14px;
+    transition: background-color .2s, box-shadow .2s;
+  }
+
+  .control:hover:not(:disabled) {
+    box-shadow: 0 3px 15px rgb(95 77 141 / 10%);
+  }
+
+  .field {
+    width: 100%;
+    min-height: 46px;
+    padding: 10px 14px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  .eyebrow {
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: .12em;
+    font-weight: 600;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass,
+  .workspace-frame {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--canvas);
+  }
+}

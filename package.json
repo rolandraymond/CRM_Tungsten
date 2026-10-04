@@ -1,0 +1,19 @@
+{
+  "name": "tungsten-crm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently -k -n API,WEB \"npm run dev --prefix apps/api\" \"npm run dev --prefix apps/web\"",
+    "test": "npm run build --prefix apps/api && node --test tests/*.test.mjs",
+    "setup": "npm ci --prefix apps/api && npm ci --prefix apps/web",
+    "build": "npm run build --prefix apps/api && npm run build --prefix apps/web"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^10.0.5",
+    "supabase": "^2.117.0"
+  }
+}
