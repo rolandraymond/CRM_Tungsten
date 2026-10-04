@@ -34,6 +34,12 @@ const token = match?.[1];
     const { data, error } = await supabaseAuth.auth.getUser(token);
 
     if (error) {
+      console.warn('[Auth verification failed]', {
+        status: error.status,
+        code: error.code,
+        message: error.message,
+      });
+
       const authUnavailable =
         !error.status ||
         error.status >= 500 ||

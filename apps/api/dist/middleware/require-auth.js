@@ -16,6 +16,11 @@ export const requireAuth = async (req, res, next) => {
     try {
         const { data, error } = await supabaseAuth.auth.getUser(token);
         if (error) {
+            console.warn('[Auth verification failed]', {
+                status: error.status,
+                code: error.code,
+                message: error.message,
+            });
             const authUnavailable = !error.status ||
                 error.status >= 500 ||
                 error.status === 429;
