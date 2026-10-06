@@ -1,7 +1,7 @@
 import { useEffect, useId } from 'react';
 import { supabase } from '../lib/supabase';
 
-type Table = 'leads' | 'appointments' | 'clinic_ads' | 'chat_channels' | 'chat_conversations' | 'chat_messages';
+type Table = 'leads' | 'appointments' | 'clinic_ads' | 'chat_channels' | 'chat_conversations'   | 'chat_referrals'| 'chat_messages';
 
 // The event only invalidates the screen. The authenticated API remains the
 // source of truth, including after a reconnect or an inactive browser tab.

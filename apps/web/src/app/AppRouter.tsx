@@ -13,6 +13,9 @@ import AdminAdsPage from '../features/admin/AdminAdsPage';
 import { useGet } from '../hooks/useGet';
 import QueryState from '../components/QueryState';
 import ChatsPage from '../features/chats/ChatsPage';
+import BookingSettingsPage from '../features/booking/BookingSettingsPage';
+import BookingCalendarPage from '../features/booking/BookingCalendarPage';
+
 
 export default function AppRouter() {
   const { t } = useTranslation();
@@ -112,6 +115,20 @@ export default function AppRouter() {
         <Route path="/leads/new" element={<CreateLeadPage />} />
         <Route path="/leads/:leadId" element={<LeadDetailPage />} />
         <Route path="/chats" element={<ChatsPage />} />
+
+        <Route
+          path="/booking/settings"
+          element={<BookingSettingsPage />}
+        />
+
+        <Route
+          path="/booking/calendar"
+          element={<BookingCalendarPage />}
+        />
+        <Route
+  path="/booking/follow-up"
+  element={<Navigate to="/leads" replace />}
+/>
       </Route>
 
       <Route

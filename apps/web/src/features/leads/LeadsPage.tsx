@@ -7,10 +7,11 @@ import { useLeads } from './useLeads';
 import LeadCard from './LeadCard';
 import QueryState from '../../components/QueryState';
 import { useClinicChanges } from '../../hooks/useClinicChanges';
+import BookingFollowUpPage from '../booking/BookingFollowUpPage';
 
 const liveTables = ['leads'] as const;
 
-export default function LeadsPage() {
+function ExistingLeadsPage() {
   const { t } = useTranslation();
   const { token, clinic } = useOutletContext<WorkspaceContext>();
   const [page, setPage] = useState(1);
@@ -112,4 +113,21 @@ export default function LeadsPage() {
       </div>
     </>
   );
+}
+export default function LeadsPage() {
+  const { clinic, isAdmin } =
+    useOutletContext<WorkspaceContext>();
+
+  const canManageFollowUp =
+    isAdmin === true
+    || [
+      'platform_admin',
+      'clinic_manager',
+      'clinic_customer_service',
+      'moderator',
+    ].includes(clinic.role);
+
+  return canManageFollowUp
+    ? <BookingFollowUpPage />
+    : <ExistingLeadsPage />;
 }

@@ -4,6 +4,52 @@ import { requireAuth } from '../../middleware/require-auth.js';
 import { createUserSupabaseClient } from '../../lib/supabase.js';
 import { addLeadNoteSchema, createLeadSchema, changeLeadStatusSchema, listLeadsSchema, createBookingSchema, } from './leads.schema.js';
 import { addLeadNote, createLead, changeLeadStatus, createBooking, listLeads, listLeadEvents, } from './leads.service.js';
+function bookingError(error) {
+    if (error.code === '40001' &&
+        error.message === 'BOOKING_SLOT_FULL') {
+        return {
+            status: 409,
+            code: 'BOOKING_SLOT_FULL',
+            message: 'This time slot is full. Choose another time.',
+        };
+    }
+    if (error.code !== '22023')
+        return null;
+    switch (error.message) {
+        case 'BOOKING_SETTINGS_REQUIRED':
+            return {
+                status: 400,
+                code: 'BOOKING_SETTINGS_REQUIRED',
+                message: 'Clinic booking settings must be configured first.',
+            };
+        case 'BOOKING_DISABLED':
+            return {
+                status: 400,
+                code: 'BOOKING_DISABLED',
+                message: 'Booking is currently disabled for this clinic.',
+            };
+        case 'CLINIC_CLOSED':
+            return {
+                status: 400,
+                code: 'CLINIC_CLOSED',
+                message: 'The clinic is closed on this working day.',
+            };
+        case 'INVALID_BOOKING_SLOT':
+            return {
+                status: 400,
+                code: 'INVALID_BOOKING_SLOT',
+                message: 'Choose a valid time from the clinic calendar.',
+            };
+        case 'INVALID_BOOKING_SETTINGS':
+            return {
+                status: 400,
+                code: 'INVALID_BOOKING_SETTINGS',
+                message: 'Clinic booking settings need to be corrected.',
+            };
+        default:
+            return null;
+    }
+}
 export const leadsRouter = Router();
 leadsRouter.post('/:leadId/booking', requireAuth, async (req, res) => {
     const leadId = z.uuid().safeParse(req.params.leadId);
@@ -15,6 +61,16 @@ leadsRouter.post('/:leadId/booking', requireAuth, async (req, res) => {
     try {
         const { data, error } = await createBooking(res.locals.auth.accessToken, leadId.data, body.data);
         if (error) {
+            const bookingFailure = bookingError(error);
+            if (bookingFailure) {
+                res.status(bookingFailure.status).json({
+                    error: {
+                        code: bookingFailure.code,
+                        message: bookingFailure.message,
+                    },
+                });
+                return;
+            }
             const status = error.code === '42501'
                 ? 403
                 : error.code === '40001'
@@ -193,6 +249,16 @@ leadsRouter.post('/', requireAuth, async (req, res) => {
     try {
         const { data, error } = await createLead(auth.accessToken, parsed.data);
         if (error) {
+            const bookingFailure = bookingError(error);
+            if (bookingFailure) {
+                res.status(bookingFailure.status).json({
+                    error: {
+                        code: bookingFailure.code,
+                        message: bookingFailure.message,
+                    },
+                });
+                return;
+            }
             if (error.code === '42501') {
                 res.status(403).json({
                     error: {

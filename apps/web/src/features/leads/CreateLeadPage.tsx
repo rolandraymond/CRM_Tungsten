@@ -14,7 +14,7 @@ import { createLeadCopy } from './createLead.copy';
 import ChoiceSelect, {
   ChoiceImage,
 } from '../../components/ChoiceSelect';
-
+import BookingCalendarPage from '../booking/BookingCalendarPage';
 import { leadFormCopy } from './leadForm.copy';
 
 type Source = keyof typeof createLeadCopy.en.sources;
@@ -82,12 +82,7 @@ function normalizePhone(value: string) {
   return phone;
 }
 
-function localDateTime(value: string) {
-  const date = new Date(value);
-  if (!Number.isFinite(date.getTime())) return '';
-  const pad = (part: number) => String(part).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+
 
 export default function CreateLeadPage() {
   const { token, clinic, userId, isAdmin } =
@@ -124,20 +119,27 @@ export default function CreateLeadPage() {
   const [bookingMode, setBookingMode] = useState(
     pending?.booking ? 'booking' : 'inquiry',
   );
-  const [startsAt, setStartsAt] = useState(
-    pending?.booking ? localDateTime(pending.booking.starts_at) : '',
-  );
+const [startsAt, setStartsAt] = useState(
+  pending?.booking?.starts_at ?? '',
+);
   const [bookingReason, setBookingReason] = useState(
     pending?.booking?.reason ?? '',
   );
-  const canBook = Boolean(isAdmin) || clinic.role === 'platform_admin' ||
-    ['clinic_manager', 'clinic_customer_service'].includes(clinic.role);
+  const canBook =
+  Boolean(isAdmin)
+  || clinic.role === 'platform_admin'
+  || [
+    'clinic_manager',
+    'clinic_customer_service',
+    'moderator',
+  ].includes(clinic.role);
   const ar = language === 'ar';
 
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);
 
   const [error, setError] = useState<keyof typeof c | null>(null);
+  const [bookingError, setBookingError] = useState('');
 
   const query = useGet<Options>(
     `/api/lead-options?clinic_id=${encodeURIComponent(clinic.id)}`,
@@ -152,6 +154,8 @@ export default function CreateLeadPage() {
     event.preventDefault();
 
     if (sending.current) return;
+
+    setBookingError('');
 
     const normalized = normalizePhone(phone);
     const bookingTime = new Date(startsAt);
@@ -225,11 +229,56 @@ export default function CreateLeadPage() {
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) {
-        if ([400, 403, 409].includes(response.status)) {
-          sessionStorage.removeItem(storageKey);
-          setPending(null);
+if (!response.ok) {
+  const body: unknown = await response.json().catch(() => null);
 
+  let code = '';
+
+  if (
+    body !== null
+    && typeof body === 'object'
+    && 'error' in body
+    && body.error !== null
+    && typeof body.error === 'object'
+    && 'code' in body.error
+    && typeof body.error.code === 'string'
+  ) {
+    code = body.error.code;
+  }
+
+  const bookingMessages: Record<string, string> = {
+    BOOKING_SLOT_FULL: ar
+      ? 'المعاد ده اكتمل حجزه. اختار معاد تاني من التقويم.'
+      : 'This slot is now full. Choose another calendar slot.',
+
+    BOOKING_SLOT_INVALID: ar
+      ? 'المعاد لم يعد متاحًا حسب إعدادات العيادة. اختار معاد جديد.'
+      : 'This slot is no longer valid. Choose a new calendar slot.',
+
+    BOOKING_CLOSED: ar
+      ? 'العيادة غير متاحة للحجز في الموعد ده. اختار معاد تاني.'
+      : 'The clinic is closed at this time. Choose another slot.',
+
+    BOOKING_DISABLED: ar
+      ? 'الحجز متوقف حاليًا للعيادة. راجع مدير العيادة.'
+      : 'Booking is currently disabled. Contact the clinic manager.',
+
+    BOOKING_SETTINGS_REQUIRED: ar
+      ? 'مدير العيادة لازم يضبط إعدادات المواعيد الأول.'
+      : 'The clinic manager must configure booking settings first.',
+  };
+
+      if ([400, 403, 409].includes(response.status)) {
+        sessionStorage.removeItem(storageKey);
+        setPending(null);
+
+        const message = bookingMessages[code];
+
+        if (message) {
+          setStartsAt('');
+          setError(null);
+          setBookingError(message);
+        } else {
           setError(
             response.status === 403
               ? 'forbidden'
@@ -237,14 +286,16 @@ export default function CreateLeadPage() {
                 ? 'conflict'
                 : 'rejected',
           );
-        } else {
-          setError(
-            response.status === 401 ? 'login' : 'uncertain',
-          );
         }
-
-        return;
+      } else {
+        // Keep the same request for retry when its outcome is uncertain.
+        setError(
+          response.status === 401 ? 'login' : 'uncertain',
+        );
       }
+
+      return;
+    }
 
       const result = await response.json();
 
@@ -375,24 +426,53 @@ export default function CreateLeadPage() {
               />
             )}
 
-            {bookingMode === 'booking' && (
-              <div className="lead-form-row">
-                <label>
-                  <span className="form-label">{ar ? 'ميعاد الحجز' : 'Appointment time'}</span>
-                  <input className="field" type="datetime-local" required
-                    value={startsAt} onChange={event => setStartsAt(event.target.value)} />
-                  <span className="text-xs text-muted">
-                    {ar ? 'بتوقيت جهازك: ' : 'Your device timezone: '}
-                    {Intl.DateTimeFormat().resolvedOptions().timeZone}
-                  </span>
-                </label>
-                <label>
-                  <span className="form-label">{ar ? 'تفاصيل تأكيد الحجز' : 'Booking confirmation details'}</span>
-                  <input className="field" required maxLength={2000} dir="auto"
-                    value={bookingReason} onChange={event => setBookingReason(event.target.value)} />
-                </label>
-              </div>
-            )}
+          {bookingMode === 'booking' && (
+            <div className="grid min-w-0 gap-4">
+              {pending?.booking ? (
+                <p className="lead-notice" role="status">
+                  {ar
+                    ? 'الموعد الموجود في الطلب الجاري: '
+                    : 'Appointment in the pending request: '}
+
+                  {new Intl.DateTimeFormat(
+                    ar ? 'ar-EG' : 'en-GB',
+                    {
+                      timeZone: 'Africa/Cairo',
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    },
+                  ).format(new Date(pending.booking.starts_at))}
+
+                  {ar ? ' — بتوقيت القاهرة' : ' — Cairo time'}
+                </p>
+              ) : (
+                <BookingCalendarPage onSelect={setStartsAt} />
+              )}
+
+              <label>
+                <span className="form-label">
+                  {ar ? 'تفاصيل الحجز' : 'Booking details'}
+                </span>
+
+                <input
+                  className="field"
+                  required
+                  maxLength={2000}
+                  dir="auto"
+                  value={bookingReason}
+                  onChange={event =>
+                    setBookingReason(event.target.value)
+                  }
+                />
+              </label>
+
+              <p className="text-sm text-muted">
+                {ar
+                  ? 'اختار معاد متاح من التقويم. تأكيد الحضور يتم يوم الزيارة من متابعة العملاء.'
+                  : 'Choose an available calendar slot. Attendance is confirmed on the visit date from Customer follow-up.'}
+              </p>
+            </div>
+          )}
 
             <div className="grid gap-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -522,7 +602,11 @@ export default function CreateLeadPage() {
               {c.uncertain}
             </p>
           )}
-
+          {bookingError && (
+            <p role="alert" className="text-sm text-danger">
+              {bookingError}
+            </p>
+          )}
           {error && error !== 'sources' && (
             <p role="alert" className="text-sm text-danger">
               {c[error]}

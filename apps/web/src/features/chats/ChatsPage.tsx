@@ -32,7 +32,233 @@ function attachmentLinks(value: unknown): { url: string; type: string }[] {
     } catch { return []; }
   });
 }
+type ChatReferral = {
+  id: string;
+  meta_ad_id: string | null;
+  source: string | null;
+  referral_type: string | null;
+  referral_ref: string | null;
+  ad_title: string | null;
+  occurred_at: string;
+};
 
+const referralTables = ['chat_referrals'] as const;
+
+function ChatAdDetails({
+  conversationId,
+  clinicId,
+  token,
+  ar,
+}: {
+  conversationId: string;
+  clinicId: string;
+  token: string;
+  ar: boolean;
+}) {
+  const [page, setPage] = useState(1);
+
+  const query = useGet<Page<ChatReferral>>(
+    `/api/chats/conversations/${conversationId}/referrals`
+      + `?clinic_id=${encodeURIComponent(clinicId)}&page=${page}`,
+    token,
+  );
+
+  useClinicChanges(clinicId, referralTables, query.retry);
+
+  return (
+    <details className="mt-4 rounded-2xl border border-line p-4">
+      <summary className="cursor-pointer text-sm font-semibold">
+        {ar ? 'مصدر العميل وتفاصيل الإعلان' : 'Customer source and ad details'}
+      </summary>
+
+      <div className="mt-3">
+        {query.error ? (
+          <QueryState error retry={query.retry} />
+        ) : !query.data ? (
+          <p className="text-sm text-muted">
+            {ar ? 'جاري تحميل المصدر…' : 'Loading source…'}
+          </p>
+        ) : query.data.data.length === 0 ? (
+          <p className="text-sm text-muted">
+            {ar
+              ? 'المصدر غير معروف. لم يتم تسجيل إحالة لهذه المحادثة.'
+              : 'Source unknown. No referral has been recorded for this conversation.'}
+          </p>
+        ) : (
+          <div className="grid gap-3">
+            {query.data.data.map(referral => {
+              const date = new Date(referral.occurred_at);
+
+              return (
+                <article
+                  key={referral.id}
+                  className="min-w-0 rounded-xl bg-surface p-3"
+                >
+                  <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted">
+                        {ar ? 'عنوان الإعلان' : 'Ad title'}
+                      </dt>
+                      <dd className="mt-1 break-words" dir="auto">
+                        {referral.ad_title
+                          || (ar ? 'غير متاح' : 'Unavailable')}
+                      </dd>
+                    </div>
+
+                    <div className="min-w-0">
+                      <dt className="text-xs text-muted">Ad ID</dt>
+                      <dd className="mt-1 break-all" dir="ltr">
+                        {referral.meta_ad_id ?? '—'}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt className="text-xs text-muted">
+                        {ar ? 'المصدر' : 'Source'}
+                      </dt>
+                      <dd className="mt-1 break-words" dir="auto">
+                        {referral.source ?? '—'}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt className="text-xs text-muted">
+                        {ar ? 'نوع الإحالة' : 'Referral type'}
+                      </dt>
+                      <dd className="mt-1 break-words" dir="auto">
+                        {referral.referral_type ?? '—'}
+                      </dd>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <dt className="text-xs text-muted">
+                        {ar ? 'تاريخ الإحالة' : 'Referral date'}
+                      </dt>
+                      <dd className="mt-1">
+                        {Number.isNaN(date.getTime())
+                          ? '—'
+                          : date.toLocaleString(
+                              ar ? 'ar-EG' : 'en-GB',
+                              {
+                                timeZone: 'Africa/Cairo',
+                                hour12: true,
+                              },
+                            )}
+                      </dd>
+                    </div>
+                  </dl>
+                </article>
+              );
+            })}
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <button
+                type="button"
+                className="control"
+                disabled={page === 1}
+                onClick={() => setPage(value => value - 1)}
+              >
+                {ar ? 'الأحدث' : 'Newer'}
+              </button>
+
+              <span className="text-xs text-muted">{page}</span>
+
+              <button
+                type="button"
+                className="control"
+                disabled={!query.data.pagination.has_more}
+                onClick={() => setPage(value => value + 1)}
+              >
+                {ar ? 'الأقدم' : 'Older'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
+type CustomerProfile = {
+  customer_id: string;
+  name: string | null;
+  photo_url: string | null;
+};
+
+function ChatCustomerIdentity({
+  conversationId,
+  customerId,
+  clinicId,
+  token,
+  ar,
+}: {
+  conversationId: string;
+  customerId: string;
+  clinicId: string;
+  token: string;
+  ar: boolean;
+}) {
+  const query = useGet<{ data: CustomerProfile }>(
+    `/api/chats/conversations/${conversationId}/profile`
+      + `?clinic_id=${encodeURIComponent(clinicId)}`,
+    token,
+  );
+
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
+  const profile = query.data?.data;
+  const photo = profile?.photo_url;
+
+  const showPhoto =
+    Boolean(photo?.startsWith('https://'))
+    && photo !== failedPhoto;
+
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      {showPhoto ? (
+        <img
+          src={photo!}
+          alt=""
+          className="size-12 shrink-0 rounded-full object-cover"
+          referrerPolicy="no-referrer"
+          onError={() => setFailedPhoto(photo ?? null)}
+        />
+      ) : (
+        <div
+          className="grid size-12 shrink-0 place-items-center rounded-full bg-surface font-semibold"
+          aria-hidden="true"
+        >
+          {profile?.name?.trim().slice(0, 1).toUpperCase() || '?'}
+        </div>
+      )}
+
+      <div className="min-w-0">
+        <h2 className="break-words font-semibold" dir="auto">
+          {profile?.name || (ar ? 'عميل' : 'Customer')}
+        </h2>
+
+        <p className="mt-1 break-all text-xs text-muted" dir="ltr">
+          ID: {customerId}
+        </p>
+
+        {query.error && (
+          <button
+            type="button"
+            className="mt-1 text-xs underline"
+            onClick={query.retry}
+          >
+            {ar ? 'إعادة تحميل بيانات العميل' : 'Retry customer details'}
+          </button>
+        )}
+
+        {!query.error && query.data && !profile?.name && (
+          <p className="mt-1 text-xs text-muted">
+            {ar ? 'الاسم غير متاح حاليًا' : 'Name currently unavailable'}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 function ConversationPanel({ conversation, token, clinicId, canReply, ar, onQueued }: {
   conversation: Conversation; token: string; clinicId: string; canReply: boolean; ar: boolean; onQueued: () => void;
 }) {
@@ -90,7 +316,14 @@ function ConversationPanel({ conversation, token, clinicId, canReply, ar, onQueu
   }
   return <section className="chat-panel">
     <header className="border-b border-line p-5">
-      <h2 className="font-semibold" dir="auto">{conversation.customer_id}</h2>
+      <ChatCustomerIdentity
+        key={conversation.id}
+        conversationId={conversation.id}
+        customerId={conversation.customer_id}
+        clinicId={clinicId}
+        token={token}
+        ar={ar}
+      />
         <p className="mt-2 text-sm font-semibold" dir="auto">
           {ar ? 'الصفحة: ' : 'Page: '}
           {conversation.channel.name}
@@ -106,7 +339,16 @@ function ConversationPanel({ conversation, token, clinicId, canReply, ar, onQueu
             : 'Instagram Account ID'}
           : {conversation.channel.asset_id}
         </p>
+
+        <ChatAdDetails
+        key={conversation.id}
+        conversationId={conversation.id}
+        clinicId={clinicId}
+        token={token}
+        ar={ar}
+      />
     </header>
+
     <div ref={thread} className="chat-thread" aria-live="polite" aria-busy={busy}>
       {query.error || !query.data ? <QueryState error={query.error} retry={query.retry} /> : query.data.data.length === 0
         ? <p>{ar ? 'مفيش رسائل لسه.' : 'No messages yet.'}</p>

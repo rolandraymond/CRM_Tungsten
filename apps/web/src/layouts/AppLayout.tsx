@@ -3,9 +3,14 @@ import type { Session } from '@supabase/supabase-js';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LogOut } from 'lucide-react';
+
 import { supabase } from '../lib/supabase';
 import { useGet } from '../hooks/useGet';
-import type { Clinic, WorkspaceContext } from '../features/leads/types';
+import type {
+  Clinic,
+  WorkspaceContext,
+} from '../features/leads/types';
+
 import Brand from '../components/Brand';
 import Preferences from '../components/Preferences';
 import QueryState from '../components/QueryState';
@@ -18,7 +23,10 @@ export default function AppLayout({
   session: Session;
   isAdmin: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const ar = (i18n.resolvedLanguage ?? i18n.language)
+    .startsWith('ar');
+
   const token = session.access_token;
 
   const me = useGet<{
@@ -31,9 +39,15 @@ export default function AppLayout({
   );
 
   const [selectedId, setSelectedId] = useState('');
+
   const clinic =
-    clinics.data?.data.find(item => item.id === selectedId) ??
-    clinics.data?.data[0];
+    clinics.data?.data.find(item => item.id === selectedId)
+    ?? clinics.data?.data[0];
+
+  const canManageBooking =
+    isAdmin
+    || clinic?.role === 'platform_admin'
+    || clinic?.role === 'clinic_manager';
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -59,7 +73,7 @@ export default function AppLayout({
           <Brand />
 
           <nav
-            className="order-3 flex w-full gap-1 rounded-2xl p-1 sm:order-none sm:w-auto sm:ms-6"
+            className="order-3 flex w-full flex-wrap items-center gap-1 rounded-2xl p-1 sm:order-none sm:ms-6 sm:w-auto"
             aria-label={t('common.overview')}
           >
             {['overview', 'leads', 'chats'].map(page => (
@@ -77,18 +91,69 @@ export default function AppLayout({
                 {t(`common.${page}`)}
               </NavLink>
             ))}
-            {isAdmin && (
+            {clinic && (isAdmin || clinic.role !== 'doctor') && (
               <NavLink
-                to="/admin/setup"
-                className="rounded-xl px-5 py-3 text-sm text-muted hover:bg-surface"
+                to="/booking/calendar"
+                className={({ isActive }) =>
+                  `rounded-xl px-5 py-3 text-sm transition ${
+                    isActive
+                      ? 'bg-surface text-ink shadow-sm'
+                      : 'text-muted hover:bg-surface'
+                  }`
+                }
               >
-                {t('common.admin')}
+                {ar ? 'تقويم الحجوزات' : 'Booking calendar'}
               </NavLink>
+                          )}
+
+                          
+
+            {canManageBooking && (
+              <details
+                key={clinic?.id ?? 'administration'}
+                className="relative"
+              >
+                <summary className="cursor-pointer rounded-xl px-5 py-3 text-sm text-muted hover:bg-surface">
+                  {t('common.admin')}
+                </summary>
+
+                <div className="absolute start-0 top-full z-50 mt-2 grid min-w-60 gap-1 rounded-2xl border border-line bg-white p-2 text-black shadow-lg">
+                  {isAdmin && (
+                    <NavLink
+                      to="/admin/setup"
+                      className="rounded-xl px-4 py-3 text-sm hover:bg-black/5"
+                    >
+                      {ar ? 'الإدارة العامة' : 'Administration setup'}
+                    </NavLink>
+                  )}
+
+                  <NavLink
+                    to="/booking/settings"
+                    className={({ isActive }) =>
+                      `rounded-xl px-4 py-3 text-sm ${
+                        isActive
+                          ? 'bg-black text-white'
+                          : 'hover:bg-black/5'
+                      }`
+                    }
+                    onClick={event => {
+                      event.currentTarget
+                        .closest('details')
+                        ?.removeAttribute('open');
+                    }}
+                  >
+                    {ar
+                      ? 'إعدادات مواعيد العيادة'
+                      : 'Clinic booking settings'}
+                  </NavLink>
+                </div>
+              </details>
             )}
           </nav>
 
           <div className="ms-auto flex items-center gap-2">
             <Preferences />
+
             <button
               type="button"
               className="control"
@@ -118,7 +183,9 @@ export default function AppLayout({
           ) : !clinics.data ? (
             <QueryState />
           ) : !clinic ? (
-            <p className="glass p-6">{t('common.noClinics')}</p>
+            <p className="glass p-6">
+              {t('common.noClinics')}
+            </p>
           ) : (
             <>
               <div className="clinic-bar">
@@ -140,15 +207,15 @@ export default function AppLayout({
                 </p>
               </div>
 
-            <Outlet
-            key={clinic.id}
-            context={{
-                token,
-                clinic,
-                userId: session.user.id,
-                isAdmin,
-            } satisfies WorkspaceContext}
-            />
+              <Outlet
+                key={clinic.id}
+                context={{
+                  token,
+                  clinic,
+                  userId: session.user.id,
+                  isAdmin,
+                } satisfies WorkspaceContext}
+              />
             </>
           )}
         </main>
