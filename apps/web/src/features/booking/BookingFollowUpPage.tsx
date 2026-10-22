@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { canCreateLeads } from '../leads/types';
 import type { WorkspaceContext } from '../leads/types';
 import { useClinicChanges } from '../../hooks/useClinicChanges';
-import BookingCalendarPage from './BookingCalendarPage';
+import AppointmentReschedulePicker from './AppointmentReschedulePicker';
+import type { RescheduleAppointment } from './AppointmentReschedulePicker';
 
 type Lane =
   | 'new'
@@ -55,6 +56,7 @@ type Target = {
   version: number;
   name: string;
   action: Action;
+  appointment?: RescheduleAppointment;
 };
 
 const lanes: Lane[] = [
@@ -126,6 +128,22 @@ function actionLabel(action: Action, ar: boolean) {
 
 function errorMessage(code: string, ar: boolean) {
   const messages: Record<string, [string, string]> = {
+    BOOKING_RESOURCE_UNAVAILABLE: [
+      'الدكتور أو الجهاز لم يعد متاحًا. اختار موعد جديد.',
+      'The doctor or device is no longer available. Choose a new time.',
+    ],
+    BOOKING_CONFIGURATION_CHANGED: [
+      'إعدادات الحجز اتغيّرت. اقفل النافذة وراجع مدير العيادة.',
+      'Booking settings changed. Close and contact the clinic manager.',
+    ],
+    INVALID_BOOKING_INPUT: [
+      'الموعد غير صالح. اختار موعد قادم جديد.',
+      'Invalid appointment time. Choose a new future time.',
+    ],
+    LEGACY_BOOKING_REQUIRES_RESOURCE_ASSIGNMENT: [
+      'في حجوزات قديمة محتاجة تحديد الدكتور. راجع مدير العيادة.',
+      'Legacy bookings need a doctor assigned. Contact the clinic manager.',
+    ],
     STALE_APPOINTMENT: [
       'الحجز اتعدل. اقفل النافذة وراجع أحدث بيانات.',
       'This booking changed. Close this window and review the latest data.',
@@ -211,7 +229,7 @@ type Inquiry = {
   contact: Relation<Contact>;
 };
 
-type Appointment = {
+type Appointment = RescheduleAppointment & {
   id: string;
   lead_id: string;
   status: string;
@@ -356,6 +374,10 @@ function ActionDialog({
           || typeof result !== 'object'
           || !('data' in result)
           || !result.data
+          || typeof result.data !== 'object'
+          || (target.kind === 'appointment'
+            ? !('appointment_id' in result.data) || result.data.appointment_id !== target.id
+            : !('lead_id' in result.data) || result.data.lead_id !== target.id)
         ) {
           setError(errorMessage('', ar));
           setMustReview(true);
@@ -373,7 +395,13 @@ function ActionDialog({
 
       if (
         target.action === 'reschedule'
-        && ['BOOKING_SLOT_FULL', 'INVALID_BOOKING_SLOT', 'CLINIC_CLOSED']
+        && [
+          'BOOKING_RESOURCE_UNAVAILABLE',
+          'INVALID_BOOKING_INPUT',
+          'BOOKING_SLOT_FULL',
+          'INVALID_BOOKING_SLOT',
+          'CLINIC_CLOSED',
+        ]
           .includes(code)
       ) {
         setStartsAt('');
@@ -429,10 +457,17 @@ function ActionDialog({
 
         {target.action === 'reschedule' && (
           <fieldset disabled={busy || mustReview} className="min-w-0">
-            <BookingCalendarPage
-              key={calendarVersion}
-              onSelect={setStartsAt}
-            />
+            {target.appointment && (
+              <AppointmentReschedulePicker
+                key={`${target.id}:${target.version}:${calendarVersion}`}
+                clinicId={clinicId}
+                appointment={target.appointment}
+                token={token}
+                ar={ar}
+                disabled={busy || mustReview}
+                onSelect={setStartsAt}
+              />
+            )}
           </fieldset>
         )}
 
@@ -795,6 +830,7 @@ function LaneColumn({
                   id: item.id,
                   version: item.follow_up_version,
                   name,
+                  appointment: item,
                 }, actions)}
               </article>
             );

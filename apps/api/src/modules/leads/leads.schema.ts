@@ -1,4 +1,28 @@
 import { z } from 'zod';
+import { DateTime } from 'luxon';
+
+const hybridLeadBookingSchema = z
+  .strictObject({
+    starts_at: z.iso
+      .datetime({ offset: true })
+      .refine((value) => DateTime.fromISO(value, { setZone: true }).isValid),
+    assignment_mode: z.enum(['specific', 'auto']),
+    doctor_id: z.uuid().nullable(),
+    device_id: z.uuid().nullable().default(null),
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .refine(
+    (booking) => booking.assignment_mode === 'specific'
+      ? booking.doctor_id !== null
+      : booking.doctor_id === null,
+    { message: 'Doctor selection does not match assignment mode', path: ['doctor_id'] },
+  );
+
+// Keep the current create-lead form working until its frontend is updated.
+const legacyLeadBookingSchema = z.strictObject({
+  starts_at: z.iso.datetime({ offset: true }),
+  reason: z.string().trim().min(1).max(2000),
+});
 
 export const createLeadSchema = z
   .strictObject({
@@ -51,10 +75,10 @@ export const createLeadSchema = z
       .optional()
       .transform((value) => value || null),
 
-    booking: z.strictObject({
-      starts_at: z.iso.datetime({ offset: true }),
-      reason: z.string().trim().min(1).max(2000),
-    }).nullable().default(null),
+    booking: z
+      .union([hybridLeadBookingSchema, legacyLeadBookingSchema])
+      .nullable()
+      .default(null),
 
     allow_inactive_ad: z.boolean().default(false),
   })

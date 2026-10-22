@@ -21,6 +21,7 @@ export type Lead = {
   status: string;
   source: string;
   created_at: string;
+  requested_service_id: string
   requested_service_name_snapshot: string;
   contact_type_at_creation: 'new_contact' | 'existing_contact';
   contact: {

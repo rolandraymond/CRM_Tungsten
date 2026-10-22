@@ -36,19 +36,15 @@ export default function AdminAdsPage({
 
   const [clinics, setClinics] = useState<Clinic[]>([]);
   const [clinicId, setClinicId] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loadedToken, setLoadedToken] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [result, setResult] = useState<SyncResult | null>(null);
+  const loading = loadedToken !== token;
+  const visibleFailed = loadedToken === token && failed;
 
   useEffect(() => {
     const controller = new AbortController();
-
-    setLoading(true);
-    setFailed(false);
-    setClinics([]);
-    setClinicId('');
-    setResult(null);
 
     async function load() {
       try {
@@ -76,14 +72,17 @@ export default function AdminAdsPage({
         if (!controller.signal.aborted) {
           setClinics(available);
           setClinicId(available[0]?.id ?? '');
+          setFailed(false);
+          setResult(null);
+          setLoadedToken(token);
         }
       } catch {
         if (!controller.signal.aborted) {
+          setClinics([]);
+          setClinicId('');
+          setResult(null);
           setFailed(true);
-        }
-      } finally {
-        if (!controller.signal.aborted) {
-          setLoading(false);
+          setLoadedToken(token);
         }
       }
     }
@@ -199,7 +198,7 @@ export default function AdminAdsPage({
         </div>
       )}
 
-      {failed && (
+      {visibleFailed && (
         <p role="alert" className="mt-4">
           {ar
             ? 'تعذر إتمام الطلب. راجع تشغيل Finance Bridge وصلاحية الأدمن ورسالة API في Network، ثم أعد المحاولة.'

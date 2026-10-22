@@ -55,8 +55,9 @@ export default function OverviewPage() {
     `/api/dashboard?clinic_id=${encodeURIComponent(clinic.id)}`,
     token,
   );
+  const { retry } = query;
 
-  useClinicChanges(clinic.id, liveTables, query.retry);
+  useClinicChanges(clinic.id, liveTables, retry);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -64,12 +65,12 @@ export default function OverviewPage() {
         document.visibilityState === 'visible'
         && !document.querySelector('dialog[open]')
       ) {
-        query.retry();
+        retry();
       }
     }, 60_000);
 
     return () => window.clearInterval(timer);
-  }, [query.retry]);
+  }, [retry]);
 
   const data = query.data?.data;
 

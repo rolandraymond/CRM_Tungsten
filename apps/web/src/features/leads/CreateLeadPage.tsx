@@ -14,7 +14,8 @@ import { createLeadCopy } from './createLead.copy';
 import ChoiceSelect, {
   ChoiceImage,
 } from '../../components/ChoiceSelect';
-import BookingCalendarPage from '../booking/BookingCalendarPage';
+import HybridBookingPicker from '../booking/HybridBookingPicker';
+import type { HybridBookingSelection } from '../booking/HybridBookingPicker';
 import { leadFormCopy } from './leadForm.copy';
 
 type Source = keyof typeof createLeadCopy.en.sources;
@@ -31,7 +32,11 @@ type Payload = {
   ad_id: string | null;
   meta_creative_id: null;
   notes: string | null;
-  booking?: { starts_at: string; reason: string } | null;
+  // Older pending requests retain their original payload when retried.
+  booking?: (
+    { starts_at: string; reason: string }
+    | (HybridBookingSelection & { reason: string })
+  ) | null;
   allow_inactive_ad: false;
 };
 
@@ -83,7 +88,6 @@ function normalizePhone(value: string) {
 }
 
 
-
 export default function CreateLeadPage() {
   const { token, clinic, userId, isAdmin } =
     useOutletContext<WorkspaceContext>();
@@ -119,20 +123,19 @@ export default function CreateLeadPage() {
   const [bookingMode, setBookingMode] = useState(
     pending?.booking ? 'booking' : 'inquiry',
   );
-const [startsAt, setStartsAt] = useState(
-  pending?.booking?.starts_at ?? '',
-);
+  const [bookingSelection, setBookingSelection] =
+    useState<HybridBookingSelection | null>(null);
+  const [availabilityVersion, setAvailabilityVersion] = useState(0);
   const [bookingReason, setBookingReason] = useState(
     pending?.booking?.reason ?? '',
   );
-  const canBook =
-  Boolean(isAdmin)
-  || clinic.role === 'platform_admin'
-  || [
-    'clinic_manager',
-    'clinic_customer_service',
-    'moderator',
-  ].includes(clinic.role);
+  const canBook = Boolean(isAdmin)
+    || clinic.role === 'platform_admin'
+    || [
+      'clinic_manager',
+      'clinic_customer_service',
+      'moderator',
+    ].includes(clinic.role);
   const ar = language === 'ar';
 
   const [busy, setBusy] = useState(false);
@@ -158,9 +161,9 @@ const [startsAt, setStartsAt] = useState(
     setBookingError('');
 
     const normalized = normalizePhone(phone);
-    const bookingTime = new Date(startsAt);
+    const bookingTime = new Date(bookingSelection?.starts_at ?? '');
     if (!pending && bookingMode === 'booking' && (
-      !canBook || !Number.isFinite(bookingTime.getTime()) ||
+      !canBook || !bookingSelection || !Number.isFinite(bookingTime.getTime()) ||
       bookingTime.getTime() <= Date.now() || !bookingReason.trim()
     )) {
       setError('invalid');
@@ -181,8 +184,6 @@ const [startsAt, setStartsAt] = useState(
       return;
     }
 
-    
-
     const payload: Payload = pending ?? {
       request_id: crypto.randomUUID(),
       clinic_id: clinic.id,
@@ -201,6 +202,7 @@ const [startsAt, setStartsAt] = useState(
       meta_creative_id: null,
       notes: notes.trim() || null,
       booking: bookingMode === 'booking' ? {
+        ...bookingSelection!,
         starts_at: bookingTime.toISOString(),
         reason: bookingReason.trim(),
       } : null,
@@ -229,79 +231,110 @@ const [startsAt, setStartsAt] = useState(
         body: JSON.stringify(payload),
       });
 
-if (!response.ok) {
-  const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const body: unknown = await response.json().catch(() => null);
 
-  let code = '';
+        let code = '';
 
-  if (
-    body !== null
-    && typeof body === 'object'
-    && 'error' in body
-    && body.error !== null
-    && typeof body.error === 'object'
-    && 'code' in body.error
-    && typeof body.error.code === 'string'
-  ) {
-    code = body.error.code;
-  }
+        if (
+          body !== null
+          && typeof body === 'object'
+          && 'error' in body
+          && body.error !== null
+          && typeof body.error === 'object'
+          && 'code' in body.error
+          && typeof body.error.code === 'string'
+        ) {
+          code = body.error.code;
+        }
 
-  const bookingMessages: Record<string, string> = {
-    BOOKING_SLOT_FULL: ar
-      ? 'المعاد ده اكتمل حجزه. اختار معاد تاني من التقويم.'
-      : 'This slot is now full. Choose another calendar slot.',
+        const bookingMessages: Record<string, string> = {
+          BOOKING_RESOURCE_UNAVAILABLE: ar
+            ? 'الدكتور أو الجهاز اتحجز في الموعد ده. اختار موعد جديد.'
+            : 'The doctor or device is now booked. Choose another time.',
+          BOOKING_REJECTED: ar
+            ? 'الموعد مش متاح حسب جدول الدكتور والأجهزة. اختار موعد جديد.'
+            : 'The time is unavailable for the doctor and devices. Choose another time.',
+          SERVICE_UNAVAILABLE: ar
+            ? 'الخدمة لم تعد متاحة. حدّث قائمة الخدمات.'
+            : 'The service is no longer available. Refresh the service list.',
+          SERVICE_DEVICE_REQUIREMENT_NOT_CONFIGURED: ar
+            ? 'مدير العيادة لازم يضبط أجهزة الخدمة الأول.'
+            : 'The clinic manager must configure the service devices first.',
+          LEGACY_BOOKING_REQUIRES_RESOURCE_ASSIGNMENT: ar
+            ? 'في حجوزات قديمة محتاجة تحديد الدكتور. راجع مدير العيادة.'
+            : 'Legacy bookings need a doctor assigned. Contact the clinic manager.',
+          INVALID_OR_AMBIGUOUS_SCHEDULE_TIME: ar
+            ? 'جدول الدكتور محتاج مراجعة بسبب التوقيت الصيفي.'
+            : 'The doctor schedule needs review for daylight saving time.',
+          BOOKING_SLOT_FULL: ar
+            ? 'المعاد ده اكتمل حجزه. اختار معاد تاني من التقويم.'
+            : 'This slot is now full. Choose another calendar slot.',
 
-    BOOKING_SLOT_INVALID: ar
-      ? 'المعاد لم يعد متاحًا حسب إعدادات العيادة. اختار معاد جديد.'
-      : 'This slot is no longer valid. Choose a new calendar slot.',
+          BOOKING_SLOT_INVALID: ar
+            ? 'المعاد لم يعد متاحًا حسب إعدادات العيادة. اختار معاد جديد.'
+            : 'This slot is no longer valid. Choose a new calendar slot.',
 
-    BOOKING_CLOSED: ar
-      ? 'العيادة غير متاحة للحجز في الموعد ده. اختار معاد تاني.'
-      : 'The clinic is closed at this time. Choose another slot.',
+          BOOKING_CLOSED: ar
+            ? 'العيادة غير متاحة للحجز في الموعد ده. اختار معاد تاني.'
+            : 'The clinic is closed at this time. Choose another slot.',
 
-    BOOKING_DISABLED: ar
-      ? 'الحجز متوقف حاليًا للعيادة. راجع مدير العيادة.'
-      : 'Booking is currently disabled. Contact the clinic manager.',
+          BOOKING_DISABLED: ar
+            ? 'الحجز متوقف حاليًا للعيادة. راجع مدير العيادة.'
+            : 'Booking is currently disabled. Contact the clinic manager.',
 
-    BOOKING_SETTINGS_REQUIRED: ar
-      ? 'مدير العيادة لازم يضبط إعدادات المواعيد الأول.'
-      : 'The clinic manager must configure booking settings first.',
-  };
+          BOOKING_SETTINGS_REQUIRED: ar
+            ? 'مدير العيادة لازم يضبط إعدادات المواعيد الأول.'
+            : 'The clinic manager must configure booking settings first.',
+        };
 
-      if ([400, 403, 409].includes(response.status)) {
-        sessionStorage.removeItem(storageKey);
-        setPending(null);
+        if (code === 'REQUEST_BOOKING_CHANGED') {
+          // A receipt already exists: do not create a new request ID.
+          setError('uncertain');
+          return;
+        }
 
-        const message = bookingMessages[code];
+        if ([400, 403, 404, 409].includes(response.status)) {
+          sessionStorage.removeItem(storageKey);
+          setPending(null);
 
-        if (message) {
-          setStartsAt('');
-          setError(null);
-          setBookingError(message);
+          setBookingSelection(null);
+          setAvailabilityVersion(value => value + 1);
+          const message = bookingMessages[code];
+
+          if (message) {
+            setError(null);
+            setBookingError(message);
+          } else {
+            setError(
+              response.status === 403
+                ? 'forbidden'
+                : response.status === 409
+                  ? 'conflict'
+                  : 'rejected',
+            );
+          }
         } else {
+          // Keep the same request for retry when its outcome is uncertain.
           setError(
-            response.status === 403
-              ? 'forbidden'
-              : response.status === 409
-                ? 'conflict'
-                : 'rejected',
+            response.status === 401 ? 'login' : 'uncertain',
           );
         }
-      } else {
-        // Keep the same request for retry when its outcome is uncertain.
-        setError(
-          response.status === 401 ? 'login' : 'uncertain',
-        );
-      }
 
-      return;
-    }
+        return;
+      }
 
       const result = await response.json();
 
       if (
         typeof result.data?.lead_id !== 'string' ||
-        typeof result.data?.replayed !== 'boolean'
+        typeof result.data?.replayed !== 'boolean' ||
+        (payload.booking && 'assignment_mode' in payload.booking && (
+          typeof result.data?.appointment_id !== 'string' ||
+          result.data?.booking?.appointment_id !== result.data.appointment_id ||
+          typeof result.data?.booking?.doctor_id !== 'string' ||
+          !Number.isInteger(result.data?.booking?.duration_minutes)
+        ))
       ) {
         setError('uncertain');
         return;
@@ -310,7 +343,10 @@ if (!response.ok) {
       sessionStorage.removeItem(storageKey);
       setPending(null);
 
-      navigate('/leads', { replace: true });
+      navigate(
+        `/leads/${encodeURIComponent(result.data.lead_id)}`,
+        { replace: true },
+      );
     } catch {
       setError('uncertain');
     } finally {
@@ -392,7 +428,10 @@ if (!response.ok) {
                 value={service}
                 placeholder={c.choose}
                 disabled={busy || Boolean(pending)}
-                onChange={setService}
+                onChange={value => {
+                  setService(value);
+                  setBookingSelection(null);
+                }}
                 options={(options?.services ?? []).map(item => ({
                   value: item.id,
                   label: item.name,
@@ -418,61 +457,78 @@ if (!response.ok) {
                 label={ar ? 'نوع الطلب' : 'Request type'}
                 value={bookingMode}
                 disabled={busy || Boolean(pending)}
-                onChange={setBookingMode}
+                onChange={value => {
+                  setBookingMode(value);
+                  setBookingSelection(null);
+                }}
                 options={[
-                  { value: 'inquiry', label: ar ? 'سايب رقمه للمتابعة' : 'Inquiry / follow-up' },
-                  { value: 'booking', label: ar ? 'حجز مباشر' : 'Book now' },
+                  {
+                    value: 'inquiry',
+                    label: ar ? 'سايب رقمه للمتابعة' : 'Inquiry / follow-up',
+                  },
+                  {
+                    value: 'booking',
+                    label: ar ? 'حجز مباشر' : 'Book now',
+                  },
                 ]}
               />
             )}
 
-          {bookingMode === 'booking' && (
-            <div className="grid min-w-0 gap-4">
-              {pending?.booking ? (
-                <p className="lead-notice" role="status">
+            {bookingMode === 'booking' && (
+              <div className="grid min-w-0 gap-4">
+                {pending?.booking ? (
+                  <p className="lead-notice" role="status">
+                    {ar
+                      ? 'الموعد الموجود في الطلب الجاري: '
+                      : 'Appointment in the pending request: '}
+
+                    {new Intl.DateTimeFormat(
+                      ar ? 'ar-EG' : 'en-GB',
+                      {
+                        timeZone: 'Africa/Cairo',
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                      },
+                    ).format(new Date(pending.booking.starts_at))}
+
+                    {ar ? ' — بتوقيت القاهرة' : ' — Cairo time'}
+                  </p>
+                ) : (
+                  <HybridBookingPicker
+                    key={`${clinic.id}:${service}:${token}:${availabilityVersion}`}
+                    clinicId={clinic.id}
+                    serviceId={service}
+                    token={token}
+                    ar={ar}
+                    disabled={busy}
+                    onChange={setBookingSelection}
+                  />
+                )}
+
+                <label>
+                  <span className="form-label">
+                    {ar ? 'تفاصيل الحجز' : 'Booking details'}
+                  </span>
+
+                  <input
+                    className="field"
+                    required
+                    maxLength={2000}
+                    dir="auto"
+                    value={bookingReason}
+                    onChange={event =>
+                      setBookingReason(event.target.value)
+                    }
+                  />
+                </label>
+
+                <p className="text-sm text-muted">
                   {ar
-                    ? 'الموعد الموجود في الطلب الجاري: '
-                    : 'Appointment in the pending request: '}
-
-                  {new Intl.DateTimeFormat(
-                    ar ? 'ar-EG' : 'en-GB',
-                    {
-                      timeZone: 'Africa/Cairo',
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    },
-                  ).format(new Date(pending.booking.starts_at))}
-
-                  {ar ? ' — بتوقيت القاهرة' : ' — Cairo time'}
+                    ? 'اختار معاد متاح من التقويم. تأكيد الحضور يتم يوم الزيارة من متابعة العملاء.'
+                    : 'Choose an available calendar slot. Attendance is confirmed on the visit date from Customer follow-up.'}
                 </p>
-              ) : (
-                <BookingCalendarPage onSelect={setStartsAt} />
-              )}
-
-              <label>
-                <span className="form-label">
-                  {ar ? 'تفاصيل الحجز' : 'Booking details'}
-                </span>
-
-                <input
-                  className="field"
-                  required
-                  maxLength={2000}
-                  dir="auto"
-                  value={bookingReason}
-                  onChange={event =>
-                    setBookingReason(event.target.value)
-                  }
-                />
-              </label>
-
-              <p className="text-sm text-muted">
-                {ar
-                  ? 'اختار معاد متاح من التقويم. تأكيد الحضور يتم يوم الزيارة من متابعة العملاء.'
-                  : 'Choose an available calendar slot. Attendance is confirmed on the visit date from Customer follow-up.'}
-              </p>
-            </div>
-          )}
+              </div>
+            )}
 
             <div className="grid gap-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -622,7 +678,8 @@ if (!response.ok) {
                 !pending &&
                 (
                   !options?.services.length ||
-                  Boolean(query.error)
+                  Boolean(query.error) ||
+                  (bookingMode === 'booking' && (!bookingSelection || !bookingReason.trim()))
                 )
               )
             }
