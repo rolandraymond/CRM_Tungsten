@@ -13,6 +13,10 @@ import { bookingSettingsRouter } from './routes/booking-settings.js';
 import { bookingAvailabilityRouter } from './routes/booking-availability.js';
 import { bookingFollowUpRouter } from './routes/booking-follow-up.js';
 import { bookingFollowUpBoardRouter } from './routes/booking-follow-up-board.js';
+import { bookingSetupRouter } from './routes/booking-setup.js';
+import { bookingResourceAvailabilityRouter } from './routes/booking-resource-availability.js';
+import { hybridBookingRouter } from './routes/hybrid-booking.js';
+import { bookingResourceCalendarRouter } from './routes/booking-resource-calendar.js';
 export const app = express();
 const apiRouter = express.Router();
 
@@ -45,8 +49,15 @@ app.get('/health', (_req, res) => {
 });
 
 apiRouter.use('/clinics', clinicsRouter);
+apiRouter.use('/booking-setup', bookingSetupRouter);
+apiRouter.use(
+  '/booking-resource-availability',
+  bookingResourceAvailabilityRouter,
+);
 apiRouter.use('/booking-settings', bookingSettingsRouter);
 apiRouter.use('/booking-availability', bookingAvailabilityRouter);
+apiRouter.use('/hybrid-booking', hybridBookingRouter);
+apiRouter.use('/booking-resource-calendar', bookingResourceCalendarRouter);
 apiRouter.use('/booking-follow-up', bookingFollowUpRouter);
 apiRouter.use('/booking-follow-up-board', bookingFollowUpBoardRouter);
 apiRouter.use('/leads', leadsRouter);

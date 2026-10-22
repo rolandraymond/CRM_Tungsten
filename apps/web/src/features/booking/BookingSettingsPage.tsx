@@ -312,7 +312,21 @@ export default function BookingSettingsPage() {
       <Link to="/leads" className="control inline-flex">
         {ar ? 'رجوع للعملاء' : 'Back to leads'}
       </Link>
+      <Link to="/booking/doctors" className="control inline-flex">
+        {ar ? 'إدارة الدكاترة' : 'Manage doctors'}
+      </Link>
 
+      <Link
+  to="/booking/service-requirements"
+  className="control inline-flex"
+>
+  {ar ? 'متطلبات أجهزة الخدمات' : 'Service device requirements'}
+</Link>
+
+
+<Link to="/booking/devices" className="control inline-flex">
+  {ar ? 'إدارة الأجهزة' : 'Manage devices'}
+</Link>
       <header>
         <p className="eyebrow" dir="auto">{clinic.name}</p>
         <h1 className="mt-3 text-3xl font-semibold">

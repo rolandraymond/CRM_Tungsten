@@ -4,13 +4,18 @@ import { Link, useOutletContext } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 import type { WorkspaceContext } from '../leads/types';
-import BookingCalendarPage from '../booking/BookingCalendarPage';
+import AppointmentReschedulePicker from '../booking/AppointmentReschedulePicker';
 
 type Relation<T> = T | T[] | null;
 
 export type OverviewBooking = {
   id: string;
   lead_id: string;
+  booked_service_id: string;
+  resource_doctor_id: string | null;
+  device_id: string | null;
+  duration_minutes: number | null;
+  assignment_mode: 'auto' | 'specific' | null;
   starts_at: string;
   ends_at: string | null;
   status: 'pending' | 'confirmed';
@@ -230,6 +235,18 @@ export default function OverviewBookingCard({
 
   function errorMessage(code: string) {
     const messages: Record<string, string> = {
+      BOOKING_RESOURCE_UNAVAILABLE: ar
+        ? 'الدكتور أو الجهاز لم يعد متاحًا. اختار موعد جديد.'
+        : 'The doctor or device is no longer available. Choose a new time.',
+      BOOKING_CONFIGURATION_CHANGED: ar
+        ? 'إعدادات الحجز اتغيّرت. اقفل النافذة وراجع مدير العيادة.'
+        : 'Booking settings changed. Close and contact the clinic manager.',
+      INVALID_BOOKING_INPUT: ar
+        ? 'الموعد غير صالح. اختار موعد قادم جديد.'
+        : 'Invalid appointment time. Choose a new future time.',
+      LEGACY_BOOKING_REQUIRES_RESOURCE_ASSIGNMENT: ar
+        ? 'في حجوزات قديمة محتاجة تحديد الدكتور. راجع مدير العيادة.'
+        : 'Legacy bookings need a doctor assigned. Contact the clinic manager.',
       BOOKING_SLOT_FULL: ar
         ? 'المعاد اكتمل. اختار معاد تاني.'
         : 'This slot is full. Choose another slot.',
@@ -359,6 +376,8 @@ export default function OverviewBookingCard({
         }
 
         const slotError = [
+          'BOOKING_RESOURCE_UNAVAILABLE',
+          'INVALID_BOOKING_INPUT',
           'BOOKING_SLOT_FULL',
           'INVALID_BOOKING_SLOT',
           'BOOKING_SLOT_INVALID',
@@ -374,6 +393,18 @@ export default function OverviewBookingCard({
           setMustReview(true);
         }
 
+        onRefresh();
+        return;
+      }
+
+      if (
+        !result || typeof result !== 'object' || !('data' in result)
+        || !result.data || typeof result.data !== 'object'
+        || !('appointment_id' in result.data)
+        || result.data.appointment_id !== booking.id
+      ) {
+        setMustReview(true);
+        setMessage(errorMessage(''));
         onRefresh();
         return;
       }
@@ -603,8 +634,13 @@ export default function OverviewBookingCard({
               className="grid min-w-0 gap-4"
             >
               {action === 'reschedule' && (
-                <BookingCalendarPage
-                  key={calendarVersion}
+                <AppointmentReschedulePicker
+                  key={`${booking.id}:${booking.follow_up_version}:${calendarVersion}`}
+                  clinicId={clinic.id}
+                  appointment={booking}
+                  token={token}
+                  ar={ar}
+                  disabled={busy || mustReview}
                   onSelect={setNewStartsAt}
                 />
               )}

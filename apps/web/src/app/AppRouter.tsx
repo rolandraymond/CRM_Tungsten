@@ -15,6 +15,7 @@ import QueryState from '../components/QueryState';
 import ChatsPage from '../features/chats/ChatsPage';
 import BookingSettingsPage from '../features/booking/BookingSettingsPage';
 import BookingCalendarPage from '../features/booking/BookingCalendarPage';
+import BookingSetupPage from '../features/booking/BookingSetupPage';
 
 
 export default function AppRouter() {
@@ -118,8 +119,14 @@ export default function AppRouter() {
 
         <Route
           path="/booking/settings"
-          element={<BookingSettingsPage />}
+          element={<BookingSetupPage />}
         />
+
+        <Route path="/booking/setup" element={<Navigate to="/booking/settings" replace />} />
+        <Route path="/booking/doctors" element={<Navigate to="/booking/settings" replace />} />
+        <Route path="/booking/devices" element={<Navigate to="/booking/settings" replace />} />
+        <Route path="/booking/service-requirements" element={<Navigate to="/booking/settings" replace />} />
+        <Route path="/booking/legacy-settings" element={<BookingSettingsPage />} />
 
         <Route
           path="/booking/calendar"
