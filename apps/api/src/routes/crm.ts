@@ -453,7 +453,7 @@ crmRouter.get('/workspaces/:workspaceId/contacts', async (req: Request, res: Res
   }
 });
 
-crmRouter.post('/workspaces/:workspaceId/contacts', async (req: Request, res: Response) => {
+crmRouter.post('/workspaces/:workspaceId/contacts', async (req: Request<{ workspaceId: string }>, res: Response) => {
   try {
     const { client, userId } = getClient(res);
     const { workspaceId } = req.params;
@@ -795,7 +795,7 @@ crmRouter.get('/workspaces/:workspaceId/contacts/:id', async (req: Request, res:
   }
 });
 
-crmRouter.patch('/workspaces/:workspaceId/contacts/:id', async (req: Request, res: Response) => {
+crmRouter.patch('/workspaces/:workspaceId/contacts/:id', async (req: Request<{ workspaceId: string; id: string }>, res: Response) => {
   try {
     const { client } = getClient(res);
     const { workspaceId, id } = req.params;
@@ -1609,9 +1609,9 @@ crmRouter.patch('/workspaces/:workspaceId/deals/:id', async (req: Request, res: 
 });
 
 // Fast stage update for Kanban drag & drop
-crmRouter.post('/workspaces/:workspaceId/deals/:id/stage', async (req: Request, res: Response) => {
+crmRouter.post('/workspaces/:workspaceId/deals/:id/stage', async (req: Request<{ workspaceId: string; id: string }>, res: Response) => {
   try {
-    const { client } = getClient(res);
+    const { client, userId } = getClient(res);
     const { workspaceId, id } = req.params;
     const { stage } = req.body;
 

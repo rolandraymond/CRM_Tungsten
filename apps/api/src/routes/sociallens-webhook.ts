@@ -316,7 +316,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
       ''
     ).toString().trim().toLowerCase();
 
-    const repName = (
+    const repName = String(
       payload.sales_name ||
       payload.sales_rep ||
       payload.contact_owner ||
@@ -324,7 +324,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
       payload.owner_name ||
       rawBody.customer?.sales_name ||
       ''
-    ).toString().trim();
+    ).trim();
 
     const repSearch = repName || repEmail;
     let matchedUserId: string | null = null;
