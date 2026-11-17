@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserSupabaseClient, getSupabaseAdmin } from '../lib/supabase.js';
 import { adminTeamRouter } from './admin-team.js';
 import { adminAdsRouter } from './admin-ads.js';
-import { randomUUID } from 'node:crypto';
+import { adminEntitySetupRouter } from './admin-entity-setup.js';
+import { syncAllCrmClinics } from '../lib/clinic-sync.js';
 export const adminRouter = Router();
 const financeId = z
     .number()
@@ -44,15 +45,75 @@ async function readFinance() {
 adminRouter.use(requireAuth);
 adminRouter.get('/status', async (_req, res) => {
     try {
-        const { data, error } = await createUserSupabaseClient(res.locals.auth.accessToken).rpc('crm_admin_status');
-        if (error) {
-            res.status(503).json({ error: { code: 'ADMIN_CHECK_FAILED' } });
-            return;
+        const auth = res.locals.auth;
+        const client = createUserSupabaseClient(auth.accessToken);
+        const { data } = await client.rpc('crm_internal_user_status');
+        let isAdmin = Boolean(data?.is_admin || data?.is_owner);
+        let isOwner = Boolean(data?.is_owner);
+        let isManager = Boolean(data?.is_manager);
+        let isSales = Boolean(data?.is_sales);
+        let internalRole = data?.internal_role || null;
+        let isCompanyOwner = false;
+        let isCompanyManager = false;
+        let isClientCompany = false;
+        // If not a Tungsten internal platform user, check workspace memberships for client company accounts
+        if (!isAdmin && !isOwner && !isManager && !isSales) {
+            const adminClient = getSupabaseAdmin();
+            const { data: memberships } = await adminClient
+                .from('crm_workspace_members')
+                .select(`
+          role,
+          workspace_id,
+          is_active,
+          crm_workspaces (
+            id,
+            name,
+            workspace_type,
+            is_active
+          )
+        `)
+                .eq('user_id', auth.userId)
+                .eq('is_active', true);
+            if (memberships && memberships.length > 0) {
+                for (const m of memberships) {
+                    const ws = m.crm_workspaces;
+                    if (ws && ws.is_active) {
+                        if (ws.workspace_type === 'client_company') {
+                            isClientCompany = true;
+                        }
+                        if (m.role === 'company_owner' || m.role === 'owner') {
+                            isOwner = true;
+                            isCompanyOwner = true;
+                            internalRole = 'company_owner';
+                            break;
+                        }
+                        else if (m.role === 'company_manager' || m.role === 'manager') {
+                            isManager = true;
+                            isCompanyManager = true;
+                            internalRole = 'company_manager';
+                            break;
+                        }
+                        else if (m.role === 'sales') {
+                            isSales = true;
+                            internalRole = 'sales';
+                        }
+                    }
+                }
+            }
         }
-        res.json({ is_admin: data === true });
+        res.json({
+            is_admin: isAdmin,
+            is_owner: isOwner,
+            is_manager: isManager,
+            is_sales: isSales,
+            is_company_owner: isCompanyOwner,
+            is_company_manager: isCompanyManager,
+            is_client_company: isClientCompany,
+            internal_role: internalRole,
+        });
     }
-    catch {
-        res.status(503).json({ error: { code: 'ADMIN_CHECK_FAILED' } });
+    catch (err) {
+        res.status(503).json({ error: { code: 'ADMIN_CHECK_FAILED', message: err?.message } });
     }
 });
 adminRouter.use(async (_req, res, next) => {
@@ -64,25 +125,27 @@ adminRouter.use(async (_req, res, next) => {
             });
             return;
         }
-        const { data, error } = await createUserSupabaseClient(auth.accessToken).rpc('crm_admin_status');
+        const { data, error } = await createUserSupabaseClient(auth.accessToken).rpc('crm_internal_user_status');
         if (error) {
-            console.error('[ADMIN CHECK FAILED]', {
-                code: error.code,
-                message: error.message,
-                details: error.details,
-                hint: error.hint,
-            });
-            res.status(503).json({
-                error: { code: 'ADMIN_CHECK_FAILED' },
-            });
+            const fallback = await createUserSupabaseClient(auth.accessToken).rpc('crm_admin_status');
+            if (fallback.data === true) {
+                res.locals.is_owner = true;
+                res.locals.is_manager = false;
+                return next();
+            }
+            res.status(403).json({ error: { code: 'FORBIDDEN' } });
             return;
         }
-        if (data !== true) {
+        const isOwner = data.is_admin === true || data.is_owner === true;
+        // Admin setup pages are strictly restricted to the Owner only
+        if (!isOwner) {
             res.status(403).json({
-                error: { code: 'FORBIDDEN' },
+                error: { code: 'FORBIDDEN', message: 'صفحة الإدارة مخصصة للمالك فقط' },
             });
             return;
         }
+        res.locals.is_owner = isOwner;
+        res.locals.is_manager = false;
         next();
     }
     catch {
@@ -94,6 +157,8 @@ adminRouter.use(async (_req, res, next) => {
 adminRouter.get('/setup', async (_req, res) => {
     const db = createUserSupabaseClient(res.locals.auth.accessToken);
     try {
+        // Automatically sync any clinic added in CRM to public.clinics
+        await syncAllCrmClinics(db);
         const [clinics, services, links, assignments, finance] = await Promise.all([
             db
                 .from('clinics')
@@ -184,6 +249,42 @@ adminRouter.post('/finance/activate', async (req, res) => {
         });
     }
 });
+const clinicCreateSchema = z.strictObject({
+    name: z.string().trim().min(1).max(200),
+});
+adminRouter.post('/clinics', async (req, res) => {
+    const parsed = clinicCreateSchema.safeParse(req.body);
+    if (!parsed.success) {
+        res.status(400).json({
+            error: { code: 'VALIDATION_ERROR' },
+        });
+        return;
+    }
+    try {
+        const { data, error } = await createUserSupabaseClient(res.locals.auth.accessToken).rpc('crm_add_manual_clinic', {
+            p_name: parsed.data.name,
+        });
+        if (error) {
+            const status = error.code === '42501'
+                ? 403
+                : error.code === '22023'
+                    ? 400
+                    : 502;
+            res.status(status).json({
+                error: { code: 'CLINIC_CREATE_FAILED', message: error.message },
+            });
+            return;
+        }
+        res.status(201).json({
+            data,
+        });
+    }
+    catch {
+        res.status(502).json({
+            error: { code: 'CLINIC_CREATE_FAILED' },
+        });
+    }
+});
 const serviceSchema = z.strictObject({
     clinic_id: z.uuid(),
     name: z.string().trim().min(1).max(200),
@@ -199,9 +300,8 @@ adminRouter.post('/services', async (req, res) => {
         return;
     }
     try {
-        const { data, error } = await createUserSupabaseClient(res.locals.auth.accessToken).rpc('crm_add_local_service', {
+        const { data, error } = await createUserSupabaseClient(res.locals.auth.accessToken).rpc('crm_setup_add_service', {
             p_clinic_id: parsed.data.clinic_id,
-            p_code: `local_${randomUUID().replace(/-/g, '')}`,
             p_name: parsed.data.name,
         });
         if (error) {
@@ -241,7 +341,7 @@ adminRouter.post('/services/assign', async (req, res) => {
         return;
     }
     try {
-        const { error } = await createUserSupabaseClient(res.locals.auth.accessToken).rpc('crm_set_clinic_service', {
+        const { error } = await createUserSupabaseClient(res.locals.auth.accessToken).rpc('crm_setup_assign_service', {
             p_clinic_id: parsed.data.clinic_id,
             p_service_id: parsed.data.service_id,
             p_enabled: parsed.data.enabled,
@@ -266,6 +366,21 @@ adminRouter.post('/services/assign', async (req, res) => {
             error: { code: 'SERVICE_SAVE_FAILED' },
         });
     }
+});
+// Mount Setup for Companies and Individual Clients
+adminRouter.use('/', adminEntitySetupRouter);
+// Guard: Only Owner (Platform Admin) can access sensitive platform management (Team & Ads)
+adminRouter.use((_req, res, next) => {
+    if (!res.locals.is_owner) {
+        res.status(403).json({
+            error: {
+                code: 'FORBIDDEN',
+                message: 'Platform owner access required for this resource',
+            },
+        });
+        return;
+    }
+    next();
 });
 adminRouter.use('/team', adminTeamRouter);
 adminRouter.use('/ads', adminAdsRouter);

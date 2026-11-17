@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   Link,
@@ -153,6 +153,20 @@ export default function CreateLeadPage() {
   const options = query.data?.data;
   const selectedAd = options?.ads.find(item => item.id === ad);
 
+  // Auto-select the first service if none selected or if current is invalid
+  useEffect(() => {
+    if (options?.services?.length && (!service || !options.services.some(item => item.id === service))) {
+      setService(options.services[0].id);
+    }
+  }, [options?.services, service]);
+
+  // If clinic has no active ads, automatically default to "بدون إعلان"
+  useEffect(() => {
+    if (options && options.ads.length === 0 && (!ad || ad === '')) {
+      setAd('no_ad');
+    }
+  }, [options, ad]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -176,13 +190,20 @@ export default function CreateLeadPage() {
         !name.trim() ||
         !/^\+[1-9][0-9]{7,14}$/.test(normalized) ||
         !options?.services.some(item => item.id === service) ||
-        Boolean(ad && !selectedAd) ||
+        Boolean(ad && ad !== 'no_ad' && !selectedAd) ||
         Boolean(query.error)
       )
     ) {
       setError('invalid');
       return;
     }
+
+    const finalAdId = (ad && ad !== 'no_ad') ? ad : null;
+    const finalAttribution = (ad && ad !== 'no_ad')
+      ? 'exact_ad'
+      : ['paid_instagram', 'paid_facebook'].includes(source)
+        ? (ad === 'no_ad' ? 'not_applicable' : 'unknown')
+        : 'not_applicable';
 
     const payload: Payload = pending ?? {
       request_id: crypto.randomUUID(),
@@ -191,14 +212,8 @@ export default function CreateLeadPage() {
       phone: normalized,
       requested_service_id: service,
       source,
-
-      attribution_status: ad
-        ? 'exact_ad'
-        : ['paid_instagram', 'paid_facebook'].includes(source)
-          ? 'unknown'
-          : 'not_applicable',
-
-      ad_id: ad || null,
+      attribution_status: finalAttribution,
+      ad_id: finalAdId,
       meta_creative_id: null,
       notes: notes.trim() || null,
       booking: bookingMode === 'booking' ? {
@@ -552,6 +567,10 @@ export default function CreateLeadPage() {
                 onChange={setAd}
                 options={[
                   {
+                    value: 'no_ad',
+                    label: ar ? 'بدون إعلان' : 'No ad',
+                  },
+                  {
                     value: '',
                     label: c.unknown,
                   },
@@ -573,7 +592,7 @@ export default function CreateLeadPage() {
                 </p>
               )}
 
-              {ad && !selectedAd && !pending && (
+              {ad && ad !== 'no_ad' && !selectedAd && !pending && (
                 <p className="lead-notice" role="alert">
                   {ui.stale}
                 </p>

@@ -245,9 +245,10 @@ const reminders = pendingBookings.map(booking => {
         booking_reminders_total: reminders.length,
       },
     });
-  } catch {
+  } catch (err: any) {
+    console.error('[Dashboard Route Error]', err);
     res.status(502).json({
-      error: { code: 'DASHBOARD_UNAVAILABLE' },
+      error: { code: 'DASHBOARD_UNAVAILABLE', message: err?.message },
     });
   }
 });

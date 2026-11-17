@@ -14,6 +14,8 @@ export type WorkspaceContext = {
   token: string;
   clinic: Clinic;
   userId: string;
+  clinics?: Clinic[];
+  onClinicChange?: (clinicId: string) => void;
 };
 
 export type Lead = {

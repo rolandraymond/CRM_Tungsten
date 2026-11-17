@@ -131,7 +131,7 @@ bookingResourceCalendarRouter.get('/', async (req, res) => {
   const clinicId = input.clinic_id;
 
   try {
-    const [clinic, membership, admin] = await Promise.all([
+    const [clinic, membership, admin, internalMember] = await Promise.all([
       db
         .from('clinics')
         .select('id')
@@ -146,12 +146,21 @@ bookingResourceCalendarRouter.get('/', async (req, res) => {
         .eq('is_active', true)
         .maybeSingle(),
       db.rpc('crm_admin_status'),
+      db
+        .from('crm_workspace_members')
+        .select('role')
+        .eq('user_id', auth.userId)
+        .eq('is_active', true)
+        .in('role', ['owner', 'manager'])
+        .limit(1)
+        .maybeSingle(),
     ]);
     if (clinic.error || membership.error || admin.error)
       throw new Error('Authorization unavailable');
+    const isOwnerOrManager = admin.data === true || Boolean(internalMember.data);
     if (
       !clinic.data ||
-      (admin.data !== true && !allowedRoles.has(membership.data?.role ?? ''))
+      (!isOwnerOrManager && !allowedRoles.has(membership.data?.role ?? ''))
     ) {
       res.status(403).json({ error: { code: 'FORBIDDEN' } });
       return;

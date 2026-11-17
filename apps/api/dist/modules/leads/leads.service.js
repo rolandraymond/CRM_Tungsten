@@ -1,9 +1,12 @@
 import { createUserSupabaseClient } from '../../lib/supabase.js';
 export async function createLead(accessToken, input) {
     const supabase = createUserSupabaseClient(accessToken);
-    return await supabase.rpc('crm_create_lead_with_booking', {
-        p_input: input,
-    });
+    const usesLegacyBooking = input.booking !== null
+        && !('assignment_mode' in input.booking);
+    const rpcName = usesLegacyBooking
+        ? 'crm_create_lead_with_booking'
+        : 'crm_create_lead_with_hybrid_booking';
+    return await supabase.rpc(rpcName, { p_input: input });
 }
 export async function listLeads(accessToken, input) {
     const supabase = createUserSupabaseClient(accessToken);

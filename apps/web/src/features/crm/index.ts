@@ -1,0 +1,16 @@
+export { default as CrmLayout } from './CrmLayout';
+export { CrmProvider, useCrm } from './CrmContext';
+export { default as CrmDashboardPage } from './pages/CrmDashboardPage';
+export { default as CrmContactsPage } from './pages/CrmContactsPage';
+export { default as CrmContactDetailPage } from './pages/CrmContactDetailPage';
+export { default as CrmCompaniesPage } from './pages/CrmCompaniesPage';
+export { default as CrmDealsPage } from './pages/CrmDealsPage';
+export { default as CrmActivitiesPage } from './pages/CrmActivitiesPage';
+export { default as CrmMeetingsPage } from './pages/CrmMeetingsPage';
+export { default as CrmFollowUpsPage } from './pages/CrmFollowUpsPage';
+export { default as CrmTeamPage } from './pages/CrmTeamPage';
+export { default as CrmAnalyticsPage } from './pages/CrmAnalyticsPage';
+export { default as CrmAuditLogsPage } from './pages/CrmAuditLogsPage';
+export { default as CrmSettingsPage } from './pages/CrmSettingsPage';
+export { default as CrmSocialLensIntegrationPage } from './pages/CrmSocialLensIntegrationPage';
+export * from './types';

@@ -1,0 +1,618 @@
+{
+  "timestamp": "2026-11-10T15:02:49.988Z",
+  "host": "cspaodqcnexdnflorsdc.supabase.co",
+  "tables": {
+    "clinics": {
+      "status": "ok",
+      "count": 1,
+      "rows": [
+        {
+          "id": "e093f911-c254-4509-8525-1075541ca01a",
+          "name": "عيادة المركز الطبي",
+          "created_at": "2026-11-10T10:34:52.248501+00:00",
+          "archived_at": null
+        }
+      ]
+    },
+    "profiles": {
+      "status": "ok",
+      "count": 2,
+      "rows": [
+        {
+          "id": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "full_name": "Peter Fahmy",
+          "created_at": "2026-11-10T10:34:52.248501+00:00"
+        },
+        {
+          "id": "187b0bd6-a478-45c0-ac74-158d13677a13",
+          "full_name": "ndfi",
+          "created_at": "2026-11-10T14:00:13.191098+00:00"
+        }
+      ]
+    },
+    "clinic_memberships": {
+      "status": "ok",
+      "count": 2,
+      "rows": [
+        {
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "user_id": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "role": "clinic_manager",
+          "is_active": true,
+          "created_at": "2026-11-10T10:34:52.248501+00:00"
+        },
+        {
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "user_id": "187b0bd6-a478-45c0-ac74-158d13677a13",
+          "role": "clinic_customer_service",
+          "is_active": true,
+          "created_at": "2026-11-10T14:00:39.336714+00:00"
+        }
+      ]
+    },
+    "contacts": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "leads": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "services": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_services": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "appointments": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "appointment_events": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "lead_events": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_finance_links": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_ads": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "lead_touchpoints": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "chat_channels": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "chat_conversations": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "chat_messages": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "chat_referrals": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_booking_settings": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_doctors": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_doctor_services": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_doctor_service_devices": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_devices": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_service_devices": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_resource_blocks": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "clinic_resource_working_periods": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "meta_webhook_inbox": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "companies": {
+      "status": "ok",
+      "count": 2,
+      "rows": [
+        {
+          "id": "58daf9ec-6193-4855-ae15-b7103ce56899",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "business_name": "مركز النور التخصصي للأشعة",
+          "industry": "Healthcare / Radiology",
+          "medical_specialty": null,
+          "clinic_address": null,
+          "city": "القاهرة",
+          "district": "المعادي",
+          "google_maps_url": null,
+          "website": null,
+          "business_instagram": null,
+          "business_facebook": null,
+          "company_phone": "+201012345678",
+          "branch_count": 2,
+          "company_owner_id": null,
+          "finance_client_id": null,
+          "finance_sync_status": "pending",
+          "finance_synced_at": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T11:21:03.946352+00:00",
+          "updated_at": "2026-11-10T11:21:03.946352+00:00",
+          "archived_at": null
+        },
+        {
+          "id": "2af3fda4-9ebb-4bc2-bad2-18d5d0e6dc94",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "business_name": "QA Test Clinic & Hospital 1794313417902",
+          "industry": "Healthcare / Surgery",
+          "medical_specialty": null,
+          "clinic_address": null,
+          "city": "القاهرة",
+          "district": "المعادي",
+          "google_maps_url": null,
+          "website": null,
+          "business_instagram": null,
+          "business_facebook": null,
+          "company_phone": "+201012345678",
+          "branch_count": 1,
+          "company_owner_id": null,
+          "finance_client_id": null,
+          "finance_sync_status": "failed",
+          "finance_synced_at": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T12:23:38.265828+00:00",
+          "updated_at": "2026-11-10T13:02:19.978475+00:00",
+          "archived_at": null
+        }
+      ]
+    },
+    "deals": {
+      "status": "ok",
+      "count": 3,
+      "rows": [
+        {
+          "id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "deal_name": "اشتراك سنوي - مركز النور",
+          "company_id": "58daf9ec-6193-4855-ae15-b7103ce56899",
+          "primary_contact_id": null,
+          "deal_stage": "Client",
+          "deal_owner_id": null,
+          "deal_amount": 35000,
+          "closing_date": null,
+          "notes": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "last_modified_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T11:21:04.570974+00:00",
+          "updated_at": "2026-11-10T11:43:39.358286+00:00",
+          "archived_at": null
+        },
+        {
+          "id": "43017d44-b4a7-4d9d-a8b8-e64280ddc3e7",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "deal_name": "QA Audit Deal 1794313418718",
+          "company_id": "2af3fda4-9ebb-4bc2-bad2-18d5d0e6dc94",
+          "primary_contact_id": null,
+          "deal_stage": "Client",
+          "deal_owner_id": null,
+          "deal_amount": 25000,
+          "closing_date": null,
+          "notes": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "last_modified_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T12:23:39.019919+00:00",
+          "updated_at": "2026-11-10T12:23:42.135464+00:00",
+          "archived_at": null
+        },
+        {
+          "id": "14440f00-3ac0-47ca-8e37-dc824669d87b",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "deal_name": "Test Default Owner Deal 1794314959229",
+          "company_id": "2af3fda4-9ebb-4bc2-bad2-18d5d0e6dc94",
+          "primary_contact_id": null,
+          "deal_stage": "Call",
+          "deal_owner_id": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "deal_amount": 30000,
+          "closing_date": null,
+          "notes": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "last_modified_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T12:49:19.536766+00:00",
+          "updated_at": "2026-11-10T12:49:19.536766+00:00",
+          "archived_at": null
+        }
+      ]
+    },
+    "deal_stage_history": {
+      "status": "ok",
+      "count": 10,
+      "rows": [
+        {
+          "id": "ebc32d93-0741-40a5-9034-df70a1d00f6f",
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "previous_stage": "None",
+          "new_stage": "Call",
+          "reason": "Initial creation",
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T11:21:04.717505+00:00"
+        },
+        {
+          "id": "94b24001-72d7-47d5-bb12-2f1533c7f96d",
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "previous_stage": "Call",
+          "new_stage": "Visit",
+          "reason": "تم الاتصال وتحديد موعد زيارة الأسبوع القادم",
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T11:21:05.67254+00:00"
+        },
+        {
+          "id": "7f9b06a3-1920-49b7-8fa8-8aba41450e50",
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "previous_stage": "Visit",
+          "new_stage": "Client",
+          "reason": null,
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T11:34:19.627332+00:00"
+        },
+        {
+          "id": "6ba13615-35e8-46c3-b776-206d09fe3b64",
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "previous_stage": "Client",
+          "new_stage": "Churned",
+          "reason": null,
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T11:35:52.412289+00:00"
+        },
+        {
+          "id": "634daa2f-a792-443b-a659-084ddec2825b",
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "previous_stage": "Churned",
+          "new_stage": "Closed Lost",
+          "reason": null,
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T11:43:32.20309+00:00"
+        },
+        {
+          "id": "1b0683d7-aeee-413a-a889-ae005fac6d6a",
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "previous_stage": "Closed Lost",
+          "new_stage": "Client",
+          "reason": null,
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T11:43:39.708514+00:00"
+        },
+        {
+          "id": "4628009f-0b2a-4403-bc37-78fcd6783344",
+          "deal_id": "43017d44-b4a7-4d9d-a8b8-e64280ddc3e7",
+          "previous_stage": "None",
+          "new_stage": "Call",
+          "reason": "Initial creation",
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T12:23:39.203709+00:00"
+        },
+        {
+          "id": "5c1cd457-92ab-4781-90e4-e121eaf48830",
+          "deal_id": "43017d44-b4a7-4d9d-a8b8-e64280ddc3e7",
+          "previous_stage": "Call",
+          "new_stage": "Visit",
+          "reason": "Audit automated stage progression test",
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T12:23:39.893769+00:00"
+        },
+        {
+          "id": "151a9447-551a-4fe7-aedc-640634075c09",
+          "deal_id": "43017d44-b4a7-4d9d-a8b8-e64280ddc3e7",
+          "previous_stage": "Visit",
+          "new_stage": "Client",
+          "reason": "Audit client conversion test",
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T12:23:42.280499+00:00"
+        },
+        {
+          "id": "d8b49608-f071-4055-ab92-c7f718702485",
+          "deal_id": "14440f00-3ac0-47ca-8e37-dc824669d87b",
+          "previous_stage": "None",
+          "new_stage": "Call",
+          "reason": "Initial creation",
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T12:49:19.698773+00:00"
+        }
+      ]
+    },
+    "deal_owner_history": {
+      "status": "ok",
+      "count": 1,
+      "rows": [
+        {
+          "id": "af904af9-a96c-42f5-b139-c0b7631b0b32",
+          "deal_id": "14440f00-3ac0-47ca-8e37-dc824669d87b",
+          "previous_owner_id": null,
+          "new_owner_id": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "changed_at": "2026-11-10T12:49:19.834031+00:00"
+        }
+      ]
+    },
+    "crm_activities": {
+      "status": "ok",
+      "count": 9,
+      "rows": [
+        {
+          "id": "d1f65676-72c8-47b1-808d-fcc0332b75d9",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "activity_type": "deal_update",
+          "contact_id": null,
+          "company_id": "58daf9ec-6193-4855-ae15-b7103ce56899",
+          "lead_id": null,
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "assigned_to": null,
+          "title": "Deal Created",
+          "description": "Deal \"اشتراك سنوي - مركز النور\" created with amount 35000 EGP in stage \"Call\".",
+          "activity_date": "2026-11-10T11:21:05.086996+00:00",
+          "due_date": null,
+          "status": "completed",
+          "meeting_status": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T11:21:05.086996+00:00"
+        },
+        {
+          "id": "89b76342-b701-40f5-b9c8-b16788a87657",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "activity_type": "deal_update",
+          "contact_id": null,
+          "company_id": "58daf9ec-6193-4855-ae15-b7103ce56899",
+          "lead_id": null,
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "assigned_to": null,
+          "title": "Deal Stage Changed",
+          "description": "Stage moved from \"Call\" to \"Visit\". Reason: تم الاتصال وتحديد موعد زيارة الأسبوع القادم.",
+          "activity_date": "2026-11-10T11:21:05.824356+00:00",
+          "due_date": null,
+          "status": "completed",
+          "meeting_status": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T11:21:05.824356+00:00"
+        },
+        {
+          "id": "d0165e03-8e15-41c9-9744-206cc84473bd",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "activity_type": "call",
+          "contact_id": null,
+          "company_id": "58daf9ec-6193-4855-ae15-b7103ce56899",
+          "lead_id": null,
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "assigned_to": null,
+          "title": "مكالمة تمهيدية لمناقشة العرض المالي",
+          "description": "العميل مهتم بالحزمة المتقدمة وطلب جلسة تجريبية",
+          "activity_date": "2026-11-10T11:21:06.022+00:00",
+          "due_date": null,
+          "status": "completed",
+          "meeting_status": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T11:21:06.114834+00:00"
+        },
+        {
+          "id": "b07a9cc2-99dd-4f82-9c3b-ebb967bb448d",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "activity_type": "deal_update",
+          "contact_id": null,
+          "company_id": "58daf9ec-6193-4855-ae15-b7103ce56899",
+          "lead_id": null,
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "assigned_to": null,
+          "title": "Deal Stage Changed",
+          "description": "Stage moved from \"Visit\" to \"Client\".",
+          "activity_date": "2026-11-10T11:34:20.024389+00:00",
+          "due_date": null,
+          "status": "completed",
+          "meeting_status": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T11:34:20.024389+00:00"
+        },
+        {
+          "id": "7010a60b-f4d9-46f2-8f23-b18aae373b8b",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "activity_type": "deal_update",
+          "contact_id": null,
+          "company_id": "58daf9ec-6193-4855-ae15-b7103ce56899",
+          "lead_id": null,
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "assigned_to": null,
+          "title": "Deal Stage Changed",
+          "description": "Stage moved from \"Client\" to \"Churned\".",
+          "activity_date": "2026-11-10T11:35:52.86494+00:00",
+          "due_date": null,
+          "status": "completed",
+          "meeting_status": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T11:35:52.86494+00:00"
+        },
+        {
+          "id": "70dd05a3-5feb-4290-a55c-3e6d15eff64a",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "activity_type": "deal_update",
+          "contact_id": null,
+          "company_id": "58daf9ec-6193-4855-ae15-b7103ce56899",
+          "lead_id": null,
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "assigned_to": null,
+          "title": "Deal Stage Changed",
+          "description": "Stage moved from \"Churned\" to \"Closed Lost\".",
+          "activity_date": "2026-11-10T11:43:32.518223+00:00",
+          "due_date": null,
+          "status": "completed",
+          "meeting_status": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T11:43:32.518223+00:00"
+        },
+        {
+          "id": "c2902bb2-be12-4b1a-bb2b-729952fbe8d3",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "activity_type": "deal_update",
+          "contact_id": null,
+          "company_id": "58daf9ec-6193-4855-ae15-b7103ce56899",
+          "lead_id": null,
+          "deal_id": "c890be26-61d9-4b3d-8108-a827040f3713",
+          "assigned_to": null,
+          "title": "Deal Stage Changed",
+          "description": "Stage moved from \"Closed Lost\" to \"Client\".",
+          "activity_date": "2026-11-10T11:43:40.275465+00:00",
+          "due_date": null,
+          "status": "completed",
+          "meeting_status": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T11:43:40.275465+00:00"
+        },
+        {
+          "id": "ff62bea9-1055-4dcb-b334-5fc16a5eb257",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "activity_type": "deal_update",
+          "contact_id": null,
+          "company_id": "2af3fda4-9ebb-4bc2-bad2-18d5d0e6dc94",
+          "lead_id": null,
+          "deal_id": "14440f00-3ac0-47ca-8e37-dc824669d87b",
+          "assigned_to": null,
+          "title": "Deal Created",
+          "description": "Deal \"Test Default Owner Deal 1794314959229\" created with amount 30000 EGP in stage \"Call\".",
+          "activity_date": "2026-11-10T12:49:19.95425+00:00",
+          "due_date": null,
+          "status": "completed",
+          "meeting_status": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T12:49:19.95425+00:00"
+        },
+        {
+          "id": "f66d528b-df81-436b-b9da-e6a1386e2640",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "activity_type": "call",
+          "contact_id": null,
+          "company_id": null,
+          "lead_id": null,
+          "deal_id": null,
+          "assigned_to": null,
+          "title": "Integration Audit Discovery Call",
+          "description": "Verified relationship consistency",
+          "activity_date": "2026-11-10T13:01:20.67+00:00",
+          "due_date": null,
+          "status": "completed",
+          "meeting_status": null,
+          "created_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "created_at": "2026-11-10T13:01:20.772683+00:00"
+        }
+      ]
+    },
+    "sales_integration_events": {
+      "status": "ok",
+      "count": 0,
+      "rows": []
+    },
+    "finance_sync_records": {
+      "status": "ok",
+      "count": 3,
+      "rows": [
+        {
+          "id": "e42d0210-174e-4157-8c3f-4e56cf0ee76d",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "deal_id": "43017d44-b4a7-4d9d-a8b8-e64280ddc3e7",
+          "company_id": "2af3fda4-9ebb-4bc2-bad2-18d5d0e6dc94",
+          "sync_status": "failed",
+          "finance_client_id": null,
+          "error_message": "Network or API Contract Error: fetch failed. The endpoint POST /crm/clients may need to be implemented on the Finance server.",
+          "attempted_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "attempted_at": "2026-11-10T12:23:43.098218+00:00"
+        },
+        {
+          "id": "6901d181-7b8e-436c-80c5-269c59d75b09",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "deal_id": "43017d44-b4a7-4d9d-a8b8-e64280ddc3e7",
+          "company_id": "2af3fda4-9ebb-4bc2-bad2-18d5d0e6dc94",
+          "sync_status": "failed",
+          "finance_client_id": null,
+          "error_message": "Network or API Contract Error: fetch failed. The endpoint POST /crm/clients may need to be implemented on the Finance server.",
+          "attempted_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "attempted_at": "2026-11-10T12:49:46.379674+00:00"
+        },
+        {
+          "id": "56d2fa73-66e4-470b-b97a-e541b71271dc",
+          "clinic_id": "e093f911-c254-4509-8525-1075541ca01a",
+          "deal_id": "43017d44-b4a7-4d9d-a8b8-e64280ddc3e7",
+          "company_id": "2af3fda4-9ebb-4bc2-bad2-18d5d0e6dc94",
+          "sync_status": "failed",
+          "finance_client_id": null,
+          "error_message": "Network or API Contract Error: fetch failed. The endpoint POST /crm/clients may need to be implemented on the Finance server.",
+          "attempted_by": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+          "attempted_at": "2026-11-10T13:02:20.400351+00:00"
+        }
+      ]
+    }
+  },
+  "auth_users": [
+    {
+      "id": "187b0bd6-a478-45c0-ac74-158d13677a13",
+      "email": "sdfsfli@gmail.com",
+      "created_at": "2026-11-10T14:00:13.192805Z",
+      "role": "authenticated",
+      "last_sign_in_at": "2026-11-10T14:00:51.137576Z"
+    },
+    {
+      "id": "1bdd2f41-eca6-4628-b884-cd2b4cf00e66",
+      "email": "admin@tungsten.com",
+      "created_at": "2026-11-10T09:55:57.172211Z",
+      "role": "authenticated",
+      "last_sign_in_at": "2026-11-10T15:02:49.894018Z"
+    }
+  ]
+}

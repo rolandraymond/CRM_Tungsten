@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserSupabaseClient, getSupabaseAdmin } from '../lib/supabase.js';
 
 
 export const leadOptionsRouter = Router();
@@ -72,22 +72,71 @@ leadOptionsRouter.get('/', requireAuth, async (req, res) => {
       throw new Error('Catalog lookup failed');
     }
 
+    let serviceList = (services.data ?? [])
+      .slice(0, 200)
+      .flatMap(row => {
+        const service = Array.isArray(row.service)
+          ? row.service[0]
+          : row.service;
+
+        return service
+          ? [{
+              id: row.service_id,
+              name: service.service_name,
+            }]
+          : [];
+      });
+
+    // If the clinic has no active service, auto-ensure a default service so clinic staff can add leads
+    if (serviceList.length === 0) {
+      try {
+        const adminClient = getSupabaseAdmin();
+
+        // 1. Check if any service exists in services table
+        let { data: defaultService } = await adminClient
+          .from('services')
+          .select('id, service_name')
+          .eq('is_active', true)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (!defaultService) {
+          const { data: createdService } = await adminClient
+            .from('services')
+            .insert({
+              service_name: 'كشف عام / استشارة',
+              service_code: 'GENERAL',
+              is_active: true,
+            })
+            .select('id, service_name')
+            .maybeSingle();
+          defaultService = createdService;
+        }
+
+        if (defaultService) {
+          // 2. Link this service to clinic_services with is_active = true
+          await adminClient
+            .from('clinic_services')
+            .upsert({
+              clinic_id: parsed.data,
+              service_id: defaultService.id,
+              is_active: true,
+            }, { onConflict: 'clinic_id,service_id' });
+
+          serviceList = [{
+            id: defaultService.id,
+            name: defaultService.service_name,
+          }];
+        }
+      } catch (autoErr) {
+        console.error('[LeadOptions] Auto-provision service error:', autoErr);
+      }
+    }
+
     res.json({
       data: {
-        services: (services.data ?? [])
-          .slice(0, 200)
-          .flatMap(row => {
-            const service = Array.isArray(row.service)
-              ? row.service[0]
-              : row.service;
-
-            return service
-              ? [{
-                  id: row.service_id,
-                  name: service.service_name,
-                }]
-              : [];
-          }),
+        services: serviceList,
 
         ads: (ads.data ?? []).slice(0, 200),
 

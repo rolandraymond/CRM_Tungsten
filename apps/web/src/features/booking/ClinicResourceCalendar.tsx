@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, ChevronRight, RefreshCw, Settings2 } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, RefreshCw, Settings2 } from 'lucide-react';
 import type { WorkspaceContext } from '../leads/types';
 import { useClinicChanges } from '../../hooks/useClinicChanges';
 import { useGet } from '../../hooks/useGet';
@@ -100,10 +100,51 @@ function availabilityError(code: string, ar: boolean) {
   }
 }
 
-function CalendarWorkspace({ token, clinic, isAdmin }: WorkspaceContext) {
+function CalendarWorkspace({ token, clinic, isAdmin, clinics: contextClinics, onClinicChange }: WorkspaceContext) {
   const { i18n } = useTranslation();
   const ar = (i18n.resolvedLanguage ?? i18n.language).startsWith('ar');
   const locale = ar ? 'ar-EG' : 'en-GB';
+
+  const statusQuery = useGet<{
+    is_admin: boolean;
+    is_owner: boolean;
+    is_manager: boolean;
+    is_sales: boolean;
+  }>('/api/admin/status', token);
+  const isOwnerOrAdmin =
+    Boolean(isAdmin) ||
+    Boolean(statusQuery.data?.is_owner) ||
+    Boolean(statusQuery.data?.is_admin) ||
+    clinic.role === 'platform_admin';
+
+  const clinicsQuery = useGet<{ data: { id: string; name: string }[] }>('/api/clinics', token);
+  const clinicsList = contextClinics && contextClinics.length > 0 ? contextClinics : (clinicsQuery.data?.data ?? []);
+
+  const [selectedClinicId, setSelectedClinicId] = useState<string>(() => {
+    try {
+      return localStorage.getItem('tungsten_selected_clinic_id') || clinic.id;
+    } catch {
+      return clinic.id;
+    }
+  });
+
+  const activeClinic =
+    clinicsList.find((c) => c.id === selectedClinicId) ||
+    (clinicsList.find((c) => c.id === clinic.id) ?? (clinicsList[0] || clinic));
+
+  const handleSelectClinic = (newId: string) => {
+    setSelectedClinicId(newId);
+    try {
+      localStorage.setItem('tungsten_selected_clinic_id', newId);
+    } catch {}
+    if (onClinicChange) {
+      onClinicChange(newId);
+    }
+    setServiceId('');
+    setDoctorId('');
+    setSelectedStart('');
+  };
+
   const [month, setMonth] = useState(() => cairoToday().slice(0, 7));
   const [selectedDate, setSelectedDate] = useState<string | null>(cairoToday);
   const [serviceId, setServiceId] = useState('');
@@ -112,14 +153,14 @@ function CalendarWorkspace({ token, clinic, isAdmin }: WorkspaceContext) {
   const canView = isAdmin === true || clinic.role !== 'doctor';
   const canManage =
     isAdmin === true || ['platform_admin', 'clinic_manager'].includes(clinic.role);
-  const params = new URLSearchParams({ clinic_id: clinic.id, month });
+  const params = new URLSearchParams({ clinic_id: activeClinic.id, month });
   if (serviceId) params.set('service_id', serviceId);
   if (doctorId) params.set('doctor_id', doctorId);
   const query = useGet<{ data: Calendar }>(
     canView ? `/api/booking-resource-calendar?${params}` : null,
     token,
   );
-  useClinicChanges(clinic.id, liveTables, query.retry);
+  useClinicChanges(activeClinic.id, liveTables, query.retry);
   const calendar = query.data?.data;
   const selectedDay = calendar?.days.find((day) => day.date === selectedDate);
   const starts = [...new Set(selectedDay?.slots.map((slot) => slot.starts_at) ?? [])];
@@ -185,18 +226,40 @@ function CalendarWorkspace({ token, clinic, isAdmin }: WorkspaceContext) {
       }}
     >
       <header className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="rounded-full bg-black px-4 py-2.5 text-xs text-white">
+        <div className="flex items-center gap-2.5">
+          <span className="rounded-full bg-black px-4 py-2.5 text-xs font-semibold text-white shadow-sm">
             {ar ? 'الحجوزات' : 'Bookings'}
           </span>
-          <span className="text-xs text-black/55" dir="auto">
-            {clinic.name}
-          </span>
+          {isOwnerOrAdmin && clinicsList.length > 0 ? (
+            <div className="relative inline-flex items-center">
+              <select
+                value={activeClinic.id}
+                onChange={(e) => handleSelectClinic(e.target.value)}
+                className="cursor-pointer appearance-none rounded-full border border-black/15 bg-white/95 py-2 pl-9 pr-4 text-xs font-bold text-black shadow-sm transition hover:bg-white hover:border-black/40 focus:border-black focus:outline-none focus:ring-2 focus:ring-black/20"
+                style={{ direction: ar ? 'rtl' : 'ltr' }}
+                title={ar ? 'اختر العيادة' : 'Select clinic'}
+              >
+                {clinicsList.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    🏥 {c.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={14}
+                className="pointer-events-none absolute text-black/60 rtl:left-3 rtl:right-auto ltr:right-3 ltr:left-auto"
+              />
+            </div>
+          ) : (
+            <span className="rounded-full border border-black/10 bg-white/60 px-3.5 py-1.5 text-xs font-semibold text-black/75" dir="auto">
+              {activeClinic.name}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            className="grid size-10 place-items-center rounded-full bg-white"
+            className="grid size-10 place-items-center rounded-full bg-white shadow-sm transition hover:bg-white/80"
             onClick={() => {
               setSelectedStart('');
               query.retry();
@@ -208,7 +271,7 @@ function CalendarWorkspace({ token, clinic, isAdmin }: WorkspaceContext) {
           {canManage && (
             <Link
               to="/booking/settings"
-              className="flex min-h-10 items-center gap-2 rounded-full bg-black px-4 text-xs text-white"
+              className="flex min-h-10 items-center gap-2 rounded-full bg-black px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-black/85"
             >
               <Settings2 size={14} />
               {ar ? 'الإعدادات' : 'Settings'}
@@ -216,7 +279,18 @@ function CalendarWorkspace({ token, clinic, isAdmin }: WorkspaceContext) {
           )}
         </div>
       </header>
-      <div className="mb-3 grid gap-3 rounded-[24px] bg-white p-4 sm:grid-cols-2">
+      <div className={`mb-3 grid gap-3 rounded-[24px] bg-white p-4 ${isOwnerOrAdmin && clinicsList.length > 1 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+        {isOwnerOrAdmin && clinicsList.length > 1 && (
+          <ChoiceSelect
+            label={ar ? 'العيادة' : 'Clinic'}
+            value={activeClinic.id}
+            options={clinicsList.map((item) => ({
+              value: item.id,
+              label: item.name,
+            }))}
+            onChange={handleSelectClinic}
+          />
+        )}
         <ChoiceSelect
           label={ar ? 'الخدمة' : 'Service'}
           value={serviceId}
