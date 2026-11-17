@@ -20,6 +20,14 @@ export default function LoginPage() {
     setError(false);
 
     try {
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith('tungsten_')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {}
+
       const { error: authError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,

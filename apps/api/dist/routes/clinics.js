@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/require-auth.js';
 import { createUserSupabaseClient } from '../lib/supabase.js';
+import { syncAllCrmClinics } from '../lib/clinic-sync.js';
 export const clinicsRouter = Router();
 clinicsRouter.get('/', requireAuth, async (_req, res) => {
     const auth = res.locals.auth;
@@ -14,6 +15,8 @@ clinicsRouter.get('/', requireAuth, async (_req, res) => {
         return;
     }
     const supabase = createUserSupabaseClient(auth.accessToken);
+    // Automatically ensure CRM-added clinics are synced into public.clinics
+    await syncAllCrmClinics(supabase);
     const { data, error } = await supabase
         .from('clinics')
         .select('id, name')

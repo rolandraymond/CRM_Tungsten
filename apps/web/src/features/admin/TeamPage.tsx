@@ -196,10 +196,33 @@ export default function TeamPage({ token }: { token: string }) {
   return (
     <main className="page-backdrop min-h-dvh p-4 sm:p-8">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <Link to="/admin/setup" className="control">
-            {c.back}
-          </Link>
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/crm/dashboard" className="control text-xs font-bold">
+              ← العودة للـ CRM
+            </Link>
+            <Link
+              to="/admin/setup"
+              className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+            >
+              🏥 العملاء والخدمات (العيادات)
+            </Link>
+            <Link
+              to="/admin/companies-setup"
+              className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+            >
+              🏢 حسابات وموظفي الشركات
+            </Link>
+            <Link
+              to="/admin/individuals-setup"
+              className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+            >
+              👤 حسابات وموظفي الأفراد
+            </Link>
+            <span className="rounded-xl px-3 py-1.5 text-xs font-bold bg-amber-500 text-white shadow-sm">
+              👥 فريق عمل العيادات
+            </span>
+          </div>
           <Preferences />
         </header>
 

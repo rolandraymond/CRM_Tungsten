@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import { DateTime } from 'luxon';
 import { requireAuth } from '../middleware/require-auth.js';
 import { createUserSupabaseClient } from '../lib/supabase.js';
 export const bookingFollowUpRouter = Router();
@@ -20,6 +21,7 @@ const appointmentActionSchema = z
     ]),
     new_starts_at: z.iso
         .datetime({ offset: true })
+        .refine(value => DateTime.fromISO(value, { setZone: true }).isValid)
         .nullable()
         .optional(),
 })
@@ -49,6 +51,7 @@ const inquiryActionSchema = z
     ]),
     next_follow_up_at: z.iso
         .datetime({ offset: true })
+        .refine(value => DateTime.fromISO(value, { setZone: true }).isValid)
         .nullable()
         .optional(),
 })
@@ -81,10 +84,24 @@ const validationErrors = new Set([
     'FOLLOW_UP_NOT_DUE',
     'MANUAL_REVIEW_REQUIRED',
     'INQUIRY_NOT_ACTIONABLE',
+    'INVALID_BOOKING_INPUT',
+    'SERVICE_DEVICE_REQUIREMENT_NOT_CONFIGURED',
+    'INVALID_OR_AMBIGUOUS_SCHEDULE_TIME',
 ]);
 function mapError(error) {
     if (error.code === '42501') {
         return { status: 403, code: 'FORBIDDEN' };
+    }
+    if (error.code === '23P01') {
+        return {
+            status: 409,
+            code: error.message === 'LEGACY_BOOKING_REQUIRES_RESOURCE_ASSIGNMENT'
+                ? 'LEGACY_BOOKING_REQUIRES_RESOURCE_ASSIGNMENT'
+                : 'BOOKING_RESOURCE_UNAVAILABLE',
+        };
+    }
+    if (error.code === '23503') {
+        return { status: 409, code: 'BOOKING_CONFIGURATION_CHANGED' };
     }
     if (error.code === 'P0002') {
         return { status: 404, code: 'RECORD_NOT_FOUND' };

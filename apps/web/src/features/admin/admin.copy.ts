@@ -1,5 +1,5 @@
 const en = {
-  team: 'Team & access',
+  team: 'Clinics Team',
   ads: 'Ad sync',
   title: 'Clients & services',
   back: 'Back to CRM',
@@ -33,11 +33,17 @@ const en = {
     'This client has multiple clinic links. Review them before importing.',
   help:
     'New services here are saved in CRM. They are not written back to Finance.',
+  addClinic: 'Add client / clinic manually',
+  addClinicHelp: 'Create a new clinic directly in CRM without waiting for Finance sync.',
+  clinicNameLabel: 'Client / Clinic name',
+  clinicNamePlaceholder: 'e.g. Al-Amal Specialized Clinic',
+  addClinicAction: 'Add and save clinic',
+  clinicCreatedSuccess: 'Clinic created successfully and selected for service management.',
 };
 
 const ar: typeof en = {
-team: 'الفريق والصلاحيات',
-ads: 'مزامنة الإعلانات',
+  team: 'فريق عمل العيادات',
+  ads: 'مزامنة الإعلانات',
   title: 'العملاء والخدمات',
   back: 'رجوع للـCRM',
   refresh: 'تحديث',
@@ -70,6 +76,12 @@ ads: 'مزامنة الإعلانات',
     'العميل مربوط بأكتر من عيادة. راجع الربط قبل الاستيراد.',
   help:
     'الخدمات الجديدة هنا بتتحفظ في CRM، ومش بتتضاف تلقائيًا في Finance.',
+  addClinic: 'إضافة عميل / عيادة يدويًا',
+  addClinicHelp: 'تقدر تنشئ عيادة أو عميل جديد مباشرة في CRM بدون انتظار ربط Finance.',
+  clinicNameLabel: 'اسم العميل / العيادة',
+  clinicNamePlaceholder: 'مثال: عيادة المركز التخصصي',
+  addClinicAction: 'إضافة وحفظ العميل / العيادة',
+  clinicCreatedSuccess: 'تمت إضافة العميل/العيادة بنجاح وتم اختيارها تلقائياً لإضافة الخدمات.',
 };
 
 export const adminCopy = { en, ar };

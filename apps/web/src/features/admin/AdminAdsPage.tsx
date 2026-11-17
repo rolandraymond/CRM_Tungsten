@@ -124,15 +124,46 @@ export default function AdminAdsPage({
 
   return (
     <main
-      className="mx-auto max-w-2xl p-6"
+      className="page-backdrop min-h-dvh p-4 sm:p-8"
       dir={ar ? 'rtl' : 'ltr'}
     >
-      <Link
-        to="/admin/setup"
-        className="text-sm underline"
-      >
-        {ar ? 'رجوع للإدارة' : 'Back to administration'}
-      </Link>
+      <div className="mx-auto max-w-5xl">
+        <header className="mb-8 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link className="control text-xs font-bold" to="/crm/dashboard">
+              ← {ar ? 'العودة للـ CRM' : 'Back to CRM'}
+            </Link>
+            <Link
+              className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+              to="/admin/setup"
+            >
+              🏥 {ar ? 'العملاء والخدمات (العيادات)' : 'Clients & Services'}
+            </Link>
+            <Link
+              className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+              to="/admin/companies-setup"
+            >
+              🏢 {ar ? 'حسابات وموظفي الشركات' : 'Company Accounts'}
+            </Link>
+            <Link
+              className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+              to="/admin/individuals-setup"
+            >
+              👤 {ar ? 'حسابات وموظفي الأفراد' : 'Individual Accounts'}
+            </Link>
+            <Link
+              className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+              to="/admin/team"
+            >
+              👥 {ar ? 'فريق عمل العيادات' : 'Clinics Team'}
+            </Link>
+            <span className="rounded-xl px-3 py-1.5 text-xs font-bold bg-amber-500 text-white shadow-sm">
+              📢 {ar ? 'مزامنة الإعلانات' : 'Ad sync'}
+            </span>
+          </div>
+        </header>
+
+        <div className="mx-auto max-w-2xl">
 
       <h1 className="my-6 text-3xl">
         {ar ? 'مزامنة الإعلانات' : 'Ad sync'}
@@ -205,6 +236,8 @@ export default function AdminAdsPage({
             : 'Request failed. Check Finance Bridge, admin access and the API response in Network, then retry.'}
         </p>
       )}
+        </div>
+      </div>
     </main>
   );
 }

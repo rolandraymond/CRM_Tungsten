@@ -2,7 +2,7 @@ const en = {
   clinic: 'Clinic / client',
   ads: 'Active ads',
   noAds:
-    'No active ads are available for this clinic. You can save with “Ad not identified”, or ask your administrator to check the ad sync.',
+    'No active ads are available for this clinic. You can save with “No ad” or “Ad not identified”, or ask your administrator to check the ad sync.',
   noCaption: 'No caption available.',
   refresh: 'Refresh options',
   stale:
@@ -14,7 +14,7 @@ const ar: typeof en = {
   clinic: 'العيادة / العميل',
   ads: 'الإعلانات النشطة',
   noAds:
-    'مفيش إعلانات نشطة متاحة للعيادة دي. تقدر تحفظ باختيار «الإعلان غير محدد»، أو تطلب من المسؤول يراجع مزامنة الإعلانات.',
+    'مفيش إعلانات نشطة متاحة للعيادة دي. تقدر تحفظ باختيار «بدون إعلان» أو «الإعلان غير محدد»، أو تطلب من المسؤول يراجع مزامنة الإعلانات.',
   noCaption: 'الكابشن غير متاح.',
   refresh: 'تحديث الاختيارات',
   stale:

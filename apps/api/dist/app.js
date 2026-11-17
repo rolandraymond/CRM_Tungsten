@@ -13,9 +13,29 @@ import { bookingSettingsRouter } from './routes/booking-settings.js';
 import { bookingAvailabilityRouter } from './routes/booking-availability.js';
 import { bookingFollowUpRouter } from './routes/booking-follow-up.js';
 import { bookingFollowUpBoardRouter } from './routes/booking-follow-up-board.js';
+import { bookingSetupRouter } from './routes/booking-setup.js';
+import { bookingResourceAvailabilityRouter } from './routes/booking-resource-availability.js';
+import { hybridBookingRouter } from './routes/hybrid-booking.js';
+import { bookingResourceCalendarRouter } from './routes/booking-resource-calendar.js';
+import { internalClientsRouter } from './routes/internal-clients.js';
+import { crmRouter } from './routes/crm.js';
+import { sociallensWebhookRouter } from './routes/sociallens-webhook.js';
 export const app = express();
 const apiRouter = express.Router();
 app.disable('x-powered-by');
+// Enable CORS for all API & Webhook endpoints
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-webhook-secret, x-workspace-id');
+    if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+    }
+    next();
+});
+// SocialLens Webhook Receiver (Public, no auth requirement)
+app.use('/webhook/sociallens', express.json({ limit: '1mb' }), sociallensWebhookRouter);
+app.use('/api/webhooks/sociallens', express.json({ limit: '1mb' }), sociallensWebhookRouter);
 app.use('/webhook', (req, res, next) => {
     res.on('finish', () => {
         console.log('[Meta webhook]', {
@@ -34,8 +54,12 @@ app.get('/health', (_req, res) => {
     });
 });
 apiRouter.use('/clinics', clinicsRouter);
+apiRouter.use('/booking-setup', bookingSetupRouter);
+apiRouter.use('/booking-resource-availability', bookingResourceAvailabilityRouter);
 apiRouter.use('/booking-settings', bookingSettingsRouter);
 apiRouter.use('/booking-availability', bookingAvailabilityRouter);
+apiRouter.use('/hybrid-booking', hybridBookingRouter);
+apiRouter.use('/booking-resource-calendar', bookingResourceCalendarRouter);
 apiRouter.use('/booking-follow-up', bookingFollowUpRouter);
 apiRouter.use('/booking-follow-up-board', bookingFollowUpBoardRouter);
 apiRouter.use('/leads', leadsRouter);
@@ -43,6 +67,9 @@ apiRouter.use('/lead-options', leadOptionsRouter);
 apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/admin', adminRouter);
 apiRouter.use('/chats', chatsRouter);
+apiRouter.use('/internal/clients', internalClientsRouter);
+apiRouter.use('/crm/webhooks/sociallens', express.json({ limit: '1mb' }), sociallensWebhookRouter);
+apiRouter.use('/crm', crmRouter);
 apiRouter.get('/auth/me', requireAuth, (_req, res) => {
     const auth = res.locals.auth;
     if (!auth) {

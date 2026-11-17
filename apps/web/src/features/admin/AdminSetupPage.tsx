@@ -60,7 +60,14 @@ export default function AdminSetupPage({
   ];
 
   const query = useGet<Setup>('/api/admin/setup', token);
+  const statusQuery = useGet<{
+    is_admin: boolean;
+    is_owner: boolean;
+    is_manager: boolean;
+    is_sales: boolean;
+  }>('/api/admin/status', token);
   const data = query.data?.data;
+  const isOwner = statusQuery.data?.is_owner || statusQuery.data?.is_admin;
 
   const [clientId, setClientId] = useState('');
   const [targetId, setTargetId] = useState('');
@@ -118,11 +125,14 @@ export default function AdminSetupPage({
 
       if (result.data?.clinic_id) {
         setClinicId(result.data.clinic_id);
+      } else if (result.data?.id) {
+        setClinicId(result.data.id);
       }
 
-if (path === 'services') {
-  setName('');
-}
+      if (path === 'services') {
+        setName('');
+      }
+
 
       setNotice('success');
       query.retry();
@@ -137,16 +147,41 @@ if (path === 'services') {
   return (
     <main className="page-backdrop min-h-dvh p-4 sm:p-8">
       <div className="mx-auto max-w-5xl">
-        <header className="mb-8 flex flex-wrap items-center justify-between gap-3">
-          <Link className="control" to="/overview">
-            {c.back}
-          </Link>
-          <Link className="control" to="/admin/team">
-        {c.team}
-        </Link>
-        <Link className="control" to="/admin/ads">
-          {c.ads}
-        </Link>
+        <header className="mb-8 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link className="control text-xs font-bold" to="/crm/dashboard">
+              ← العودة للـ CRM
+            </Link>
+            <span className="rounded-xl px-3 py-1.5 text-xs font-bold bg-amber-500 text-white shadow-sm">
+              🏥 العملاء والخدمات (العيادات)
+            </span>
+            <Link
+              className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+              to="/admin/companies-setup"
+            >
+              🏢 حسابات وموظفي الشركات
+            </Link>
+            <Link
+              className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+              to="/admin/individuals-setup"
+            >
+              👤 حسابات وموظفي الأفراد
+            </Link>
+            <Link
+              className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+              to="/admin/team"
+            >
+              👥 {c.team}
+            </Link>
+            {isOwner && (
+              <Link
+                className="rounded-xl px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-ink transition"
+                to="/admin/ads"
+              >
+                📢 {c.ads}
+              </Link>
+            )}
+          </div>
           <Preferences />
         </header>
 
@@ -172,104 +207,107 @@ if (path === 'services') {
           <QueryState error={query.error} retry={query.retry} />
         ) : (
           <div className="grid gap-6 lg:grid-cols-2">
-            <section className="glass min-w-0 p-5">
-              <h2 className="mb-5 text-xl">{c.finance}</h2>
+            <div className="grid gap-6">
 
-              {!data.finance ? (
-                <p role="status">{c.offline}</p>
-              ) : (
-                <form
-                  onSubmit={event => {
-                    event.preventDefault();
+              <section className="glass min-w-0 p-5">
+                <h2 className="mb-5 text-xl">{c.finance}</h2>
 
-                    void save('finance/activate', {
-                      finance_client_id: Number(clientId),
-                      clinic_id:
-                        links[0]?.clinic_id ?? (targetId || null),
-                      service_ids: financeServices,
-                    });
-                  }}
-                >
-                  <fieldset
-                    disabled={busy}
-                    className="grid min-w-0 gap-4"
-                  >
-                  <ChoiceSelect
-                    label={c.client}
-                    value={clientId}
-                    placeholder={c.choose}
-                    disabled={busy}
-                    onChange={value => {
-                      setClientId(value);
-                      setTargetId('');
-                      setFinanceServices([]);
+                {!data.finance ? (
+                  <p role="status">{c.offline}</p>
+                ) : (
+                  <form
+                    onSubmit={event => {
+                      event.preventDefault();
+
+                      void save('finance/activate', {
+                        finance_client_id: Number(clientId),
+                        clinic_id:
+                          links[0]?.clinic_id ?? (targetId || null),
+                        service_ids: financeServices,
+                      });
                     }}
-                    options={[
-                      { value: '', label: c.choose },
-                      ...data.finance.clients.map(item => ({
-                        value: String(item.id),
-                        label: item.name,
-                      })),
-                    ]}
-                  />
-
-                    {links.length ? (
-                      <p>
-                        {links.length > 1 ? c.multiple : c.linked}
-                      </p>
-                    ) : (
-                    <ChoiceSelect
-                      label={c.target}
-                      value={targetId}
+                  >
+                    <fieldset
                       disabled={busy}
-                      onChange={setTargetId}
+                      className="grid min-w-0 gap-4"
+                    >
+                    <ChoiceSelect
+                      label={c.client}
+                      value={clientId}
+                      placeholder={c.choose}
+                      disabled={busy}
+                      onChange={value => {
+                        setClientId(value);
+                        setTargetId('');
+                        setFinanceServices([]);
+                      }}
                       options={[
-                        { value: '', label: c.newClinic },
-                        ...data.clinics
-                          .filter(item =>
-                            !data.links.some(link => link.clinic_id === item.id)
-                          )
-                          .map(item => ({
-                            value: item.id,
-                            label: item.name,
-                          })),
+                        { value: '', label: c.choose },
+                        ...data.finance.clients.map(item => ({
+                          value: String(item.id),
+                          label: item.name,
+                        })),
                       ]}
                     />
-                    )}
 
-                    <p>{c.financeServices}</p>
-
-                    {data.finance.services.map(item => (
-                      <label
-                        key={item.id}
-                        className="flex min-h-11 items-center gap-3"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={financeServices.includes(item.id)}
-                          onChange={event =>
-                            setFinanceServices(current =>
-                              event.target.checked
-                                ? [...current, item.id]
-                                : current.filter(id => id !== item.id),
+                      {links.length ? (
+                        <p>
+                          {links.length > 1 ? c.multiple : c.linked}
+                        </p>
+                      ) : (
+                      <ChoiceSelect
+                        label={c.target}
+                        value={targetId}
+                        disabled={busy}
+                        onChange={setTargetId}
+                        options={[
+                          { value: '', label: c.newClinic },
+                          ...data.clinics
+                            .filter(item =>
+                              !data.links.some(link => link.clinic_id === item.id)
                             )
-                          }
-                        />
+                            .map(item => ({
+                              value: item.id,
+                              label: item.name,
+                            })),
+                        ]}
+                      />
+                      )}
 
-                        <span dir="auto">{item.service_name}</span>
-                      </label>
-                    ))}
+                      <p>{c.financeServices}</p>
 
-                    <button
-                      className="control justify-center bg-lavender! text-[#242424]!"
-                      disabled={!clientId || links.length > 1}
-                    >
-                      {c.activate}
-                    </button>
-                  </fieldset>
-                </form>
-              )}
-            </section>
+                      {data.finance.services.map(item => (
+                        <label
+                          key={item.id}
+                          className="flex min-h-11 items-center gap-3"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={financeServices.includes(item.id)}
+                            onChange={event =>
+                              setFinanceServices(current =>
+                                event.target.checked
+                                  ? [...current, item.id]
+                                  : current.filter(id => id !== item.id),
+                              )
+                            }
+                          />
+
+                          <span dir="auto">{item.service_name}</span>
+                        </label>
+                      ))}
+
+                      <button
+                        className="control justify-center bg-lavender! text-[#242424]!"
+                        disabled={!clientId || links.length > 1}
+                      >
+                        {c.activate}
+                      </button>
+                    </fieldset>
+                  </form>
+                )}
+              </section>
+            </div>
 
             <section className="glass min-w-0 p-5">
               <h2 className="mb-5 text-xl">{c.manage}</h2>

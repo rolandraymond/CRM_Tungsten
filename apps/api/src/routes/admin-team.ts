@@ -2,15 +2,17 @@ import { Router } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { createUserSupabaseClient } from '../lib/supabase.js';
+import { syncAllCrmClinics } from '../lib/clinic-sync.js';
 
 // Mounted inside adminRouter, after its authentication/admin checks.
 export const adminTeamRouter = Router();
 
 adminTeamRouter.get('/', async (_req, res) => {
   try {
-    const { data, error } = await createUserSupabaseClient(
-      res.locals.auth!.accessToken,
-    ).rpc('crm_team_directory');
+    const client = createUserSupabaseClient(res.locals.auth!.accessToken);
+    await syncAllCrmClinics(client);
+
+    const { data, error } = await client.rpc('crm_team_directory');
 
     if (error) {
       res.status(error.code === '42501' ? 403 : 502).json({

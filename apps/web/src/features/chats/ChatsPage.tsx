@@ -380,7 +380,14 @@ function ConversationPanel({ conversation, token, clinicId, canReply, ar, onQueu
 }
 
 export default function ChatsPage() {
-  const { clinic, token, isAdmin } = useOutletContext<WorkspaceContext>();
+  const context = useOutletContext<WorkspaceContext | undefined>();
+  const clinic = context?.clinic ?? {
+    id: '00000000-0000-0000-0000-000000000000',
+    name: 'Tungsten HQ',
+    role: 'platform_admin' as const,
+  };
+  const token = context?.token ?? '';
+  const isAdmin = context?.isAdmin ?? true;
   const { i18n } = useTranslation();
   const ar = (i18n.resolvedLanguage ?? i18n.language).startsWith('ar');
   const [page, setPage] = useState(1);
@@ -409,9 +416,9 @@ export default function ChatsPage() {
     finally { setBusy(false); }
   }
   return <>
-    <p className="eyebrow">{ar ? 'محادثات العيادة' : 'CLINIC INBOX'}</p>
-    <h1 className="mt-3 text-4xl">{ar ? 'الشات' : 'Chats'}</h1>
-    <p className="mb-6 mt-3 text-muted">{ar ? 'Facebook وInstagram في مكان واحد — الرسائل بتتحدث تلقائيًا.' : 'Facebook and Instagram in one place. Messages update automatically.'}</p>
+    <p className="eyebrow">{ar ? 'محادثات العملاء والمنظومة' : 'INBOX'}</p>
+    <h1 className="mt-3 text-4xl font-bold">{ar ? 'المحادثات' : 'Chats'}</h1>
+    <p className="mb-6 mt-3 text-muted">{ar ? 'Facebook وInstagram في مكان واحد — الرسائل تتحدث تلقائياً وبشكل فوري.' : 'Facebook and Instagram in one place. Messages update automatically.'}</p>
     {isAdmin && <details className="glass mb-6 p-5">
       <summary className="cursor-pointer">{ar ? 'إعداد قنوات العيادة' : 'Clinic channel setup'}</summary>
       <p className="my-3 text-sm text-muted">{ar ? 'ربط القناة هنا بيحدد عيادتها. التوكن واشتراك Meta بيتظبطوا على السيرفر؛ الفورم ده مش بيعمل اتصال Meta لوحده.' : 'This binds the channel to this clinic. Configure its token and Meta subscription separately on the server.'}</p>

@@ -1,9 +1,19 @@
 import { Router } from 'express';
+import { hybridBookingFailure } from '../../routes/hybrid-booking.js';
 import { z } from 'zod';
 import { requireAuth } from '../../middleware/require-auth.js';
 import { createUserSupabaseClient } from '../../lib/supabase.js';
 import { addLeadNoteSchema, createLeadSchema, changeLeadStatusSchema, listLeadsSchema, createBookingSchema, } from './leads.schema.js';
 import { addLeadNote, createLead, changeLeadStatus, createBooking, listLeads, listLeadEvents, } from './leads.service.js';
+const createdBookingResultSchema = z.object({
+    appointment_id: z.uuid(),
+    doctor_id: z.uuid(),
+    device_id: z.uuid().nullable(),
+    duration_minutes: z.number().int().min(1).max(1440),
+    assignment_mode: z.enum(['specific', 'auto']),
+    starts_at: z.iso.datetime({ offset: true }),
+    ends_at: z.iso.datetime({ offset: true }),
+});
 function bookingError(error) {
     if (error.code === '40001' &&
         error.message === 'BOOKING_SLOT_FULL') {
@@ -109,7 +119,7 @@ leadsRouter.get('/:leadId', requireAuth, async (req, res) => {
             .from('leads')
             .select(`
         id, clinic_id, status, source, created_at,
-        requested_service_name_snapshot, contact_type_at_creation,
+        requested_service_id, requested_service_name_snapshot, contact_type_at_creation,
         contact:contacts (full_name, phone)
       `)
             .eq('id', leadId.data)
@@ -249,6 +259,23 @@ leadsRouter.post('/', requireAuth, async (req, res) => {
     try {
         const { data, error } = await createLead(auth.accessToken, parsed.data);
         if (error) {
+            const usesHybridBooking = parsed.data.booking !== null
+                && 'assignment_mode' in parsed.data.booking;
+            const bookingMessages = [
+                'INVALID_BOOKING_INPUT',
+                'LEAD_UNAVAILABLE',
+                'SERVICE_UNAVAILABLE',
+                'LEAD_ALREADY_BOOKED',
+                'SERVICE_DEVICE_REQUIREMENT_NOT_CONFIGURED',
+                'INVALID_OR_AMBIGUOUS_SCHEDULE_TIME',
+                'SERVICE_DOES_NOT_USE_DEVICE',
+            ];
+            if (usesHybridBooking && (error.code === '23P01'
+                || bookingMessages.includes(error.message))) {
+                const failure = hybridBookingFailure(error);
+                res.status(failure.status).json({ error: { code: failure.code } });
+                return;
+            }
             const bookingFailure = bookingError(error);
             if (bookingFailure) {
                 res.status(bookingFailure.status).json({
@@ -280,7 +307,9 @@ leadsRouter.post('/', requireAuth, async (req, res) => {
             if (error.code === '23505') {
                 res.status(409).json({
                     error: {
-                        code: 'CONFLICT',
+                        code: error.message === 'REQUEST_BOOKING_CHANGED'
+                            ? 'REQUEST_BOOKING_CHANGED'
+                            : 'CONFLICT',
                         message: 'The submitted data conflicts with an existing record',
                     },
                 });
@@ -304,7 +333,12 @@ leadsRouter.post('/', requireAuth, async (req, res) => {
             });
             return;
         }
-        if (!data ||
+        const expectsHybridBooking = parsed.data.booking !== null
+            && 'assignment_mode' in parsed.data.booking;
+        const validBookingResult = !expectsHybridBooking || (createdBookingResultSchema.safeParse(data?.booking).success
+            && data?.appointment_id === data?.booking?.appointment_id);
+        if (!validBookingResult ||
+            !data ||
             typeof data.lead_id !== 'string' ||
             typeof data.replayed !== 'boolean') {
             res.status(502).json({
@@ -319,6 +353,8 @@ leadsRouter.post('/', requireAuth, async (req, res) => {
             data: {
                 lead_id: data.lead_id,
                 replayed: data.replayed,
+                appointment_id: data.appointment_id ?? null,
+                booking: data.booking ?? null,
             },
         });
     }

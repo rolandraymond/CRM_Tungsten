@@ -101,7 +101,7 @@ bookingFollowUpBoardRouter.get('/', async (req, res) => {
   const db = createUserSupabaseClient(auth.accessToken);
 
   try {
-    const [clinic, membership, admin] = await Promise.all([
+    const [clinic, membership, admin, internalMember] = await Promise.all([
       db
         .from('clinics')
         .select('id')
@@ -118,16 +118,27 @@ bookingFollowUpBoardRouter.get('/', async (req, res) => {
         .maybeSingle(),
 
       db.rpc('crm_admin_status'),
+
+      db
+        .from('crm_workspace_members')
+        .select('role')
+        .eq('user_id', auth.userId)
+        .eq('is_active', true)
+        .in('role', ['owner', 'manager'])
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     if (clinic.error || membership.error || admin.error) {
       throw new Error('Authorization unavailable');
     }
 
+    const isOwnerOrManager = admin.data === true || Boolean(internalMember.data);
+
     if (
       !clinic.data ||
       (
-        admin.data !== true &&
+        !isOwnerOrManager &&
         !allowedRoles.has(membership.data?.role ?? '')
       )
     ) {
