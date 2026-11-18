@@ -51,13 +51,15 @@ export default function OverviewPage() {
       'moderator',
     ].includes(clinic.role);
 
+  const hasValidClinic = Boolean(clinic?.id && clinic.id !== '00000000-0000-0000-0000-000000000000');
+
   const query = useGet<Dashboard>(
-    `/api/dashboard?clinic_id=${encodeURIComponent(clinic.id)}`,
+    hasValidClinic ? `/api/dashboard?clinic_id=${encodeURIComponent(clinic.id)}` : null,
     token,
   );
   const { retry } = query;
 
-  useClinicChanges(clinic.id, liveTables, retry);
+  useClinicChanges(hasValidClinic ? clinic.id : '', liveTables, retry);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -108,7 +110,16 @@ export default function OverviewPage() {
         {t('overview.subtitle')}
       </p>
 
-      {query.error || !data ? (
+      {!hasValidClinic ? (
+        <div className="mt-6 glass p-8 text-center rounded-2xl border border-line">
+          <p className="text-base font-bold text-ink">
+            {ar ? 'لم يتم تعيين عيادة طبية لهذا الحساب بعد.' : 'No clinic assigned to this account yet.'}
+          </p>
+          <p className="mt-2 text-sm text-muted">
+            {ar ? 'إذا كنت مالك براند أو شركة، يرجى التوجه إلى لوحة CRM الخاصة بك.' : 'If you belong to a brand or company, please navigate to your CRM workspace.'}
+          </p>
+        </div>
+      ) : query.error || !data ? (
         <div className="mt-6">
           <QueryState
             error={query.error}

@@ -43,6 +43,9 @@ export default function AppRouter() {
     is_company_owner?: boolean;
     is_company_manager?: boolean;
     is_client_company?: boolean;
+    is_brand_owner?: boolean;
+    is_brand_manager?: boolean;
+    is_client_brand?: boolean;
     is_clinic_user?: boolean;
     clinic_name?: string | null;
     clinic_role?: string | null;
@@ -55,16 +58,32 @@ export default function AppRouter() {
   const isOwner = Boolean(
     adminStatus.data?.is_owner ||
     adminStatus.data?.is_admin ||
-    adminStatus.data?.is_company_owner
+    adminStatus.data?.is_company_owner ||
+    adminStatus.data?.is_brand_owner
   );
   const isManager = Boolean(
     adminStatus.data?.is_manager ||
-    adminStatus.data?.is_company_manager
+    adminStatus.data?.is_company_manager ||
+    adminStatus.data?.is_brand_manager
   );
   const isSales = Boolean(adminStatus.data?.is_sales);
+  const isClientCompany = Boolean(adminStatus.data?.is_client_company);
+  const isClientBrand = Boolean(
+    adminStatus.data?.is_client_brand ||
+    adminStatus.data?.is_brand_owner ||
+    adminStatus.data?.is_brand_manager
+  );
   const isClinicUser = Boolean(adminStatus.data?.is_clinic_user) ||
-    Boolean(adminStatus.data && !isOwner && !isManager && !isSales && !adminStatus.data.is_client_company);
-  const isCrmUser = !isClinicUser && Boolean(isOwner || isManager || isSales || adminStatus.data?.is_client_company);
+    Boolean(
+      adminStatus.data &&
+      !isOwner &&
+      !isManager &&
+      !isSales &&
+      !isClientCompany &&
+      !isClientBrand &&
+      adminStatus.data.clinic_name
+    );
+  const isCrmUser = !isClinicUser && Boolean(isOwner || isManager || isSales || isClientCompany || isClientBrand);
 
   function setupPage(page: React.ReactNode) {
     if (!session) return <Navigate to="/login" replace />;
@@ -103,6 +122,26 @@ export default function AppRouter() {
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-amber-500 border-t-transparent" />
           <p className="text-xs font-semibold text-muted">جاري تحميل لوحة التحكم...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (session && adminStatus.error) {
+    return (
+      <main className="grid min-h-dvh place-items-center p-6" dir="rtl">
+        <div className="glass max-w-md w-full rounded-3xl p-8 text-center space-y-4">
+          <p className="text-base font-bold text-danger">تعذّر الاتصال بخادم البيانات (API)</p>
+          <p className="text-xs text-muted">
+            تأكد من تشغيل السيرفر الخلفي (Port 3001) ثم أعد المحاولة.
+          </p>
+          <button
+            type="button"
+            onClick={adminStatus.retry}
+            className="control mx-auto justify-center bg-amber-500! text-white! font-bold"
+          >
+            إعادة المحاولة
+          </button>
         </div>
       </main>
     );
@@ -259,12 +298,14 @@ export default function AppRouter() {
           />
           <Route path="contacts" element={<CrmContactsPage />} />
           <Route path="contacts/:id" element={<CrmContactDetailPage />} />
+          <Route path="all-contacts" element={<Navigate to="/crm/contacts" replace />} />
+          <Route path="all-contacts/:id" element={<CrmContactDetailPage />} />
           <Route
             path="companies"
             element={isSales ? <Navigate to="/crm/contacts" replace /> : <CrmCompaniesPage />}
           />
-          <Route path="leads" element={<CrmDealsPage initialMode="leads" initialView="kanban" />} />
-          <Route path="pipeline" element={<Navigate to="/crm/leads" replace />} />
+          <Route path="leads" element={<Navigate to="/crm/contacts" replace />} />
+          <Route path="pipeline" element={<Navigate to="/crm/contacts" replace />} />
           <Route path="deals" element={<CrmDealsPage initialMode="deals" initialView="table" />} />
           <Route path="activities" element={<CrmActivitiesPage />} />
           <Route path="meetings" element={<CrmMeetingsPage />} />

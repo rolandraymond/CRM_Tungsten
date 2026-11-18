@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useCrm } from '../CrmContext';
+import { useCrmLang } from '../useCrmLang';
 import {
   Settings,
   Save,
@@ -14,6 +15,7 @@ export default function CrmSettingsPage() {
     workspaces,
     refreshWorkspaces,
   } = useCrm();
+  const { ar, dir, tr } = useCrmLang();
 
   const [name, setName] = useState(activeWorkspace?.name || '');
   const [domain, setDomain] = useState(activeWorkspace?.domain || '');
@@ -70,7 +72,7 @@ export default function CrmSettingsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={dir}>
       {/* Active Workspace Form */}
       <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
         <div className="flex items-center justify-between border-b border-line pb-4 mb-4">
@@ -79,9 +81,9 @@ export default function CrmSettingsPage() {
               <Settings className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-ink">إعدادات مساحة العمل (Workspace Settings)</h3>
+              <h3 className="text-sm font-bold text-ink">{tr('إعدادات مساحة العمل (Workspace Settings)', 'Workspace Settings')}</h3>
               <p className="text-xs text-muted">
-                إدارة الاسم والنطاق وحالة التفعيل لمساحة العمل الحالية
+                {tr('إدارة الاسم والنطاق وحالة التفعيل لمساحة العمل الحالية', 'Manage the name, domain, and activation status of the current workspace')}
               </p>
             </div>
           </div>
@@ -95,7 +97,7 @@ export default function CrmSettingsPage() {
 
         <form onSubmit={handleSave} className="space-y-4 text-xs max-w-xl">
           <div>
-            <label className="block font-medium text-muted mb-1">اسم مساحة العمل</label>
+            <label className="block font-medium text-muted mb-1">{tr('اسم مساحة العمل', 'Workspace Name')}</label>
             <input
               type="text"
               value={name}
@@ -107,7 +109,7 @@ export default function CrmSettingsPage() {
           </div>
 
           <div>
-            <label className="block font-medium text-muted mb-1">النطاق الإلكتروني (Domain)</label>
+            <label className="block font-medium text-muted mb-1">{tr('النطاق الإلكتروني (Domain)', 'Domain')}</label>
             <input
               type="text"
               value={domain}
@@ -119,10 +121,14 @@ export default function CrmSettingsPage() {
           </div>
 
           <div>
-            <label className="block font-medium text-muted mb-1">نوع مساحة العمل (غير قابل للتعديل)</label>
+            <label className="block font-medium text-muted mb-1">{tr('نوع مساحة العمل (غير قابل للتعديل)', 'Workspace Type (Read-only)')}</label>
             <input
               type="text"
-              value={activeWorkspace?.workspace_type === 'tungsten_internal' ? 'مساحة Tungsten الداخلية (tungsten_internal)' : 'شركة خارجية (client_company)'}
+              value={
+                activeWorkspace?.workspace_type === 'tungsten_internal'
+                  ? tr('مساحة Tungsten الداخلية (tungsten_internal)', 'Tungsten Internal (tungsten_internal)')
+                  : tr('شركة خارجية (client_company)', 'Client Company (client_company)')
+              }
               disabled
               className="w-full rounded-xl border border-line bg-surface/40 p-2.5 text-muted font-mono"
             />
@@ -138,11 +144,14 @@ export default function CrmSettingsPage() {
                 className="rounded border-line text-amber-500"
               />
               <span className="font-bold text-ink">
-                مساحة العمل نشطة (Active Workspace)
+                {tr('مساحة العمل نشطة (Active Workspace)', 'Active Workspace')}
               </span>
             </label>
             <p className="text-[11px] text-muted mt-1">
-              تعطيل مساحة العمل يمنع جميع الأعضاء من الوصول إلى البيانات التشغيلية فوراً بموجب سياسات RLS.
+              {tr(
+                'تعطيل مساحة العمل يمنع جميع الأعضاء من الوصول إلى البيانات التشغيلية فوراً بموجب سياسات RLS.',
+                'Deactivating a workspace immediately blocks member access to operational data via RLS policies.'
+              )}
             </p>
           </div>
 
@@ -154,7 +163,7 @@ export default function CrmSettingsPage() {
                 className="flex items-center gap-2 rounded-xl bg-amber-500 px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-amber-600 disabled:opacity-50"
               >
                 <Save className="h-4 w-4" />
-                <span>{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</span>
+                <span>{saving ? tr('جاري الحفظ...', 'Saving...') : tr('حفظ التغييرات', 'Save Changes')}</span>
               </button>
             </div>
           )}
@@ -165,21 +174,21 @@ export default function CrmSettingsPage() {
       {isPlatformAdmin && (
         <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
           <div className="mb-4">
-            <h3 className="text-sm font-bold text-ink">إدارة كافة مساحات العمل في المنصة (Platform Admin Overview)</h3>
+            <h3 className="text-sm font-bold text-ink">{tr('إدارة كافة مساحات العمل في المنصة (Platform Admin Overview)', 'Platform Workspaces Overview')}</h3>
             <p className="text-xs text-muted">
-              عرض والتحكم بحالة تفعيل كافة مساحات الشركات الخارجية ومساحة Tungsten
+              {tr('عرض والتحكم بحالة تفعيل كافة مساحات الشركات الخارجية ومساحة Tungsten', 'View and manage activation status across all client and internal workspaces')}
             </p>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
+            <table className={`w-full text-xs ${ar ? 'text-right' : 'text-left'}`}>
               <thead className="border-b border-line text-muted">
                 <tr>
-                  <th className="pb-2 font-semibold">اسم مساحة العمل</th>
-                  <th className="pb-2 font-semibold">النوع</th>
-                  <th className="pb-2 font-semibold">النطاق</th>
-                  <th className="pb-2 font-semibold">الحالة</th>
-                  <th className="pb-2 font-semibold text-center">التحكم</th>
+                  <th className="pb-2 font-semibold">{tr('اسم مساحة العمل', 'Workspace Name')}</th>
+                  <th className="pb-2 font-semibold">{tr('النوع', 'Type')}</th>
+                  <th className="pb-2 font-semibold">{tr('النطاق', 'Domain')}</th>
+                  <th className="pb-2 font-semibold">{tr('الحالة', 'Status')}</th>
+                  <th className="pb-2 font-semibold text-center">{tr('التحكم', 'Action')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/60">
@@ -200,7 +209,7 @@ export default function CrmSettingsPage() {
                             : 'bg-rose-500/10 text-rose-600'
                         }`}
                       >
-                        {ws.is_active ? 'نشطة' : 'معطلة'}
+                        {ws.is_active ? tr('نشطة', 'Active') : tr('معطلة', 'Inactive')}
                       </span>
                     </td>
                     <td className="py-2.5 text-center">
@@ -212,7 +221,7 @@ export default function CrmSettingsPage() {
                             : 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20'
                         }`}
                       >
-                        {ws.is_active ? 'تعطيل' : 'تفعيل'}
+                        {ws.is_active ? tr('تعطيل', 'Deactivate') : tr('تفعيل', 'Activate')}
                       </button>
                     </td>
                   </tr>

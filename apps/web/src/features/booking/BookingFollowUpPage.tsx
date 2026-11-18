@@ -86,7 +86,7 @@ function formatTime(value: string | null, ar: boolean) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return '—';
 
-  return new Intl.DateTimeFormat(ar ? 'ar-EG' : 'en-US', {
+  return new Intl.DateTimeFormat(ar ? 'ar-EG-u-nu-latn' : 'en-US', {
     timeZone: 'Africa/Cairo',
     day: 'numeric',
     month: 'short',

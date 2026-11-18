@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCrm } from '../CrmContext';
+import { useCrmLang } from '../useCrmLang';
 import type { CrmAuditLog } from '../types';
 import {
   History,
@@ -13,6 +14,7 @@ import {
 
 export default function CrmAuditLogsPage() {
   const { activeWorkspace, apiFetch } = useCrm();
+  const { ar, dir, tr, fmtNum } = useCrmLang();
   const navigate = useNavigate();
 
   const [logs, setLogs] = useState<CrmAuditLog[]>([]);
@@ -47,21 +49,21 @@ export default function CrmAuditLogsPage() {
   });
 
   const actionLabels: Record<string, { label: string; color: string }> = {
-    STAGE_CHANGE: { label: 'تغيير مرحلة الباكدج/الصفقة', color: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
-    INSERT: { label: 'إنشاء سجل جديد', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' },
-    UPDATE: { label: 'تحديث بيانات السجل', color: 'bg-blue-500/10 text-blue-600 border-blue-500/30' },
-    DELETE: { label: 'حذف سجل', color: 'bg-rose-500/10 text-rose-600 border-rose-500/30' },
-    TRANSFER_OWNERSHIP: { label: 'نقل مسؤولية المبيعات', color: 'bg-purple-500/10 text-purple-600 border-purple-500/30' },
-    WORKSPACE_ACTIVATED: { label: 'تفعيل مساحة العمل', color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' },
-    WORKSPACE_DEACTIVATED: { label: 'تعطيل مساحة العمل', color: 'bg-rose-500/10 text-rose-600 border-rose-500/30' },
+    STAGE_CHANGE: { label: tr('تغيير مرحلة الباكدج/الصفقة', 'Stage Changed'), color: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
+    INSERT: { label: tr('إنشاء سجل جديد', 'Created'), color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' },
+    UPDATE: { label: tr('تحديث بيانات السجل', 'Updated'), color: 'bg-blue-500/10 text-blue-600 border-blue-500/30' },
+    DELETE: { label: tr('حذف سجل', 'Deleted'), color: 'bg-rose-500/10 text-rose-600 border-rose-500/30' },
+    TRANSFER_OWNERSHIP: { label: tr('نقل مسؤولية المبيعات', 'Ownership Transferred'), color: 'bg-purple-500/10 text-purple-600 border-purple-500/30' },
+    WORKSPACE_ACTIVATED: { label: tr('تفعيل مساحة العمل', 'Workspace Activated'), color: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' },
+    WORKSPACE_DEACTIVATED: { label: tr('تعطيل مساحة العمل', 'Workspace Deactivated'), color: 'bg-rose-500/10 text-rose-600 border-rose-500/30' },
   };
 
   const entityLabels: Record<string, string> = {
-    crm_deals: 'الصفقات والباكدجات (Deals)',
-    crm_contacts: 'العملاء المحتملون (Contacts)',
-    crm_companies: 'الشركات (Companies)',
-    crm_activities: 'الأنشطة والمهام (Activities)',
-    crm_workspace_members: 'أعضاء الفريق (Members)',
+    crm_deals: tr('الصفقات والباكدجات (Deals)', 'Deals & Packages'),
+    crm_contacts: tr('العملاء المحتملون (Contacts)', 'Leads & Clients'),
+    crm_companies: tr('الشركات (Companies)', 'Companies & Clinics'),
+    crm_activities: tr('الأنشطة والمهام (Activities)', 'Activities & Tasks'),
+    crm_workspace_members: tr('أعضاء الفريق (Members)', 'Team Members'),
   };
 
   function getLogSummary(log: CrmAuditLog) {
@@ -69,61 +71,76 @@ export default function CrmAuditLogsPage() {
     const ov = log.old_values || {};
 
     if (log.entity_type === 'crm_deals') {
-      const dealName = nv.deal_name || ov.deal_name || 'صفقة';
-      const amount = Number(nv.deal_amount || ov.deal_amount || 0).toLocaleString('ar-EG');
+      const dealName = nv.deal_name || ov.deal_name || tr('صفقة', 'Deal');
+      const amount = fmtNum(Number(nv.deal_amount || ov.deal_amount || 0));
       if (log.action === 'STAGE_CHANGE') {
         return {
           title: dealName,
-          desc: `تم تغيير مرحلة الصفقة من [${ov.deal_stage || '—'}] إلى [${nv.deal_stage || '—'}] • قيمة الباكدج: ${amount} ج.م`,
+          desc: tr(
+            `تم تغيير مرحلة الصفقة من [${ov.deal_stage || '—'}] إلى [${nv.deal_stage || '—'}] • قيمة الباكدج: ${amount} ج.م`,
+            `Deal stage changed from [${ov.deal_stage || '—'}] to [${nv.deal_stage || '—'}] • Amount: ${amount} EGP`
+          ),
           targetRoute: '/crm/deals',
         };
       }
       return {
         title: dealName,
-        desc: `صفقة بقيمة ${amount} ج.م • المرحلة: ${nv.deal_stage || ov.deal_stage || '—'}`,
+        desc: tr(
+          `صفقة بقيمة ${amount} ج.م • المرحلة: ${nv.deal_stage || ov.deal_stage || '—'}`,
+          `Deal worth ${amount} EGP • Stage: ${nv.deal_stage || ov.deal_stage || '—'}`
+        ),
         targetRoute: '/crm/deals',
       };
     }
 
     if (log.entity_type === 'crm_contacts') {
-      const name = nv.full_name || ov.full_name || 'عميل';
+      const name = nv.full_name || ov.full_name || tr('عميل', 'Client');
       const status = nv.lead_status || ov.lead_status || 'جديد';
       const phone = nv.phone_number || ov.phone_number || '';
       return {
         title: name,
-        desc: `عميل محتمل • الحالة: [${status}] • الهاتف: ${phone || '—'}`,
+        desc: tr(
+          `عميل محتمل • الحالة: [${status}] • الهاتف: ${phone || '—'}`,
+          `Lead • Status: [${status}] • Phone: ${phone || '—'}`
+        ),
         targetRoute: '/crm/contacts',
       };
     }
 
     if (log.entity_type === 'crm_activities') {
-      const title = nv.title || ov.title || 'نشاط';
+      const title = nv.title || ov.title || tr('نشاط', 'Activity');
       const type = nv.activity_type || ov.activity_type || 'مهمة';
       const status = nv.completion_status || ov.completion_status || 'قيد الانتظار';
       return {
         title,
-        desc: `نشاط من نوع [${type}] • حالة الإنجاز: [${status}]`,
+        desc: tr(
+          `نشاط من نوع [${type}] • حالة الإنجاز: [${status}]`,
+          `Activity [${type}] • Status: [${status}]`
+        ),
         targetRoute: '/crm/activities',
       };
     }
 
     return {
-      title: log.entity_type || 'سجل',
-      desc: `تم تنفيذ عملية ${log.action} على السجل`,
+      title: log.entity_type || tr('سجل', 'Record'),
+      desc: tr(`تم تنفيذ عملية ${log.action} على السجل`, `Action ${log.action} performed on record`),
       targetRoute: null,
     };
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" dir={dir}>
       {/* Informative Guidance Banner */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs shadow-sm">
         <div className="flex items-center gap-3">
           <History className="h-5 w-5 text-amber-600 shrink-0" />
           <div>
-            <div className="font-bold text-ink">سجل التدقيق الأمني العام لكافة عمليات النظام (System Audit Log)</div>
+            <div className="font-bold text-ink">{tr('سجل التدقيق الأمني العام لكافة عمليات النظام (System Audit Log)', 'System Audit Log')}</div>
             <p className="text-muted mt-0.5">
-              هذا السجل يعرض التتبع الشامل لعمليات قاعدة البيانات. للاطلاع على **بروفايل عميل محدد** والباكدج والهستوري المخصص له، يرجى فتح قسم **العملاء**.
+              {tr(
+                'هذا السجل يعرض التتبع الشامل لعمليات قاعدة البيانات. للاطلاع على بروفايل عميل محدد والباكدج والهستوري المخصص له، يرجى فتح قسم العملاء.',
+                'Full audit trail of CRM database operations. To view a specific client profile, package, and history, open Leads Pipeline.'
+              )}
             </p>
           </div>
         </div>
@@ -132,16 +149,16 @@ export default function CrmAuditLogsPage() {
           className="flex items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2 font-bold text-white shadow-sm hover:bg-amber-600 transition"
         >
           <Users className="h-4 w-4" />
-          <span>فتح قائمة بروفايل العملاء والباكدجات ←</span>
+          <span>{tr('فتح قائمة بروفايل العملاء والباكدجات ←', 'Open Leads Pipeline →')}</span>
         </button>
       </div>
 
       {/* Header & Filter Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 shadow-sm">
         <div>
-          <h3 className="text-sm font-bold text-ink">سجل حركات النظام والصفقات (Audit Trail)</h3>
+          <h3 className="text-sm font-bold text-ink">{tr('سجل حركات النظام والصفقات (Audit Trail)', 'Audit Trail')}</h3>
           <p className="text-xs text-muted">
-            إجمالي {filteredLogs.length} حركة مسجلة تلقائياً
+            {tr(`إجمالي ${fmtNum(filteredLogs.length)} حركة مسجلة تلقائياً`, `Total ${fmtNum(filteredLogs.length)} logged events`)}
           </p>
         </div>
 
@@ -152,11 +169,11 @@ export default function CrmAuditLogsPage() {
             onChange={(e) => setTableFilter(e.target.value)}
             className="rounded-xl border border-line bg-surface px-3 py-2 text-xs font-bold text-ink outline-none"
           >
-            <option value="">جميع الأقسام والسجلات</option>
-            <option value="crm_deals">الصفقات والباكدجات (Deals)</option>
-            <option value="crm_contacts">العملاء (Contacts)</option>
-            <option value="crm_activities">الأنشطة (Activities)</option>
-            <option value="crm_companies">الشركات (Companies)</option>
+            <option value="">{tr('جميع الأقسام والسجلات', 'All Sections & Records')}</option>
+            <option value="crm_deals">{tr('الصفقات والباكدجات (Deals)', 'Deals & Packages')}</option>
+            <option value="crm_contacts">{tr('العملاء (Contacts)', 'Leads & Clients')}</option>
+            <option value="crm_activities">{tr('الأنشطة (Activities)', 'Activities')}</option>
+            <option value="crm_companies">{tr('الشركات (Companies)', 'Companies & Clinics')}</option>
           </select>
         </div>
       </div>
@@ -164,14 +181,14 @@ export default function CrmAuditLogsPage() {
       {/* Human-Friendly Audit Log Table */}
       <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+          <table className={`w-full text-xs ${ar ? 'text-right' : 'text-left'}`}>
             <thead className="border-b border-line bg-surface/70 text-muted">
               <tr>
-                <th className="px-4 py-3 font-semibold">التاريخ والتوقيت</th>
-                <th className="px-4 py-3 font-semibold">نوع العملية</th>
-                <th className="px-4 py-3 font-semibold">القسم / الجدول</th>
-                <th className="px-4 py-3 font-semibold">تفاصيل السجل والتغيير (Summary)</th>
-                <th className="px-4 py-3 font-semibold text-center">الإجراءات</th>
+                <th className="px-4 py-3 font-semibold">{tr('التاريخ والتوقيت', 'Date & Time')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('نوع العملية', 'Action')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('القسم / الجدول', 'Section')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('تفاصيل السجل والتغيير (Summary)', 'Summary')}</th>
+                <th className="px-4 py-3 font-semibold text-center">{tr('الإجراءات', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
@@ -180,14 +197,14 @@ export default function CrmAuditLogsPage() {
                   <td colSpan={5} className="py-16 text-center text-muted">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
-                      <span>جاري تحميل سجل التدقيق...</span>
+                      <span>{tr('جاري تحميل سجل التدقيق...', 'Loading audit log...')}</span>
                     </div>
                   </td>
                 </tr>
               ) : filteredLogs.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-16 text-center text-muted">
-                    لا توجد حركات مسجلة حالياً
+                    {tr('لا توجد حركات مسجلة حالياً', 'No audit events recorded yet')}
                   </td>
                 </tr>
               ) : (
@@ -203,7 +220,7 @@ export default function CrmAuditLogsPage() {
                     <React.Fragment key={log.id}>
                       <tr className="transition hover:bg-surface/60 group">
                         <td className="px-4 py-3 font-mono text-muted text-[11px] whitespace-nowrap">
-                          {new Date(log.created_at).toLocaleString('ar-EG', {
+                          {new Date(log.created_at).toLocaleString(ar ? 'ar-EG-u-nu-latn' : 'en-US', {
                             month: 'short',
                             day: 'numeric',
                             hour: '2-digit',
@@ -230,9 +247,9 @@ export default function CrmAuditLogsPage() {
                               <button
                                 onClick={() => navigate(summary.targetRoute)}
                                 className="inline-flex items-center gap-1 rounded-xl bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-[11px] font-bold text-amber-600 hover:bg-amber-500/20 transition"
-                                title="عرض السجل والبروفايل"
+                                title={tr('عرض السجل والبروفايل', 'View Record')}
                               >
-                                <span>عرض</span>
+                                <span>{tr('عرض', 'View')}</span>
                                 <ExternalLink className="h-3 w-3" />
                               </button>
                             )}
@@ -241,7 +258,7 @@ export default function CrmAuditLogsPage() {
                               onClick={() => setExpandedId(isExpanded ? null : log.id)}
                               className="inline-flex items-center gap-1 rounded-xl border border-line px-2.5 py-1 text-[11px] font-bold text-muted hover:text-ink hover:bg-surface/80 transition"
                             >
-                              <span>{isExpanded ? 'إخفاء' : 'التفاصيل'}</span>
+                              <span>{isExpanded ? tr('إخفاء', 'Hide') : tr('التفاصيل', 'Details')}</span>
                               {isExpanded ? (
                                 <ChevronUp className="h-3 w-3" />
                               ) : (

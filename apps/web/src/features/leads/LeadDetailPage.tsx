@@ -315,7 +315,7 @@ export default function LeadDetailPage() {
                 <dt className="text-xs text-muted">{ar ? 'تاريخ الإضافة' : 'Created'}</dt>
                 <dd className="mt-1 text-sm">
                   {current.created_at && !Number.isNaN(Date.parse(current.created_at))
-                    ? new Intl.DateTimeFormat(ar ? 'ar-EG' : 'en-GB', {
+                    ? new Intl.DateTimeFormat(ar ? 'ar-EG-u-nu-latn' : 'en-GB', {
                         timeZone: 'Africa/Cairo',
                         dateStyle: 'medium',
                         timeStyle: 'short',
@@ -454,7 +454,7 @@ export default function LeadDetailPage() {
                   <p className="mt-2 text-sm">
                     {ar ? 'ميعاد الحجز:' : 'Booking time:'}{' '}
                     {new Date(item.changes.starts_at).toLocaleString(
-                      ar ? 'ar-EG' : 'en-GB',
+                      ar ? 'ar-EG-u-nu-latn' : 'en-GB',
                     )}
                   </p>
                 )}
@@ -465,7 +465,7 @@ export default function LeadDetailPage() {
                 )}
                 <p className="mt-2 text-sm text-muted">
                   {item.actor?.full_name ?? item.performed_by} ·{' '}
-                  {new Date(item.performed_at).toLocaleString(ar ? 'ar-EG' : 'en-GB')}
+                  {new Date(item.performed_at).toLocaleString(ar ? 'ar-EG-u-nu-latn' : 'en-GB')}
                 </p>
               </li>
             ))}

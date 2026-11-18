@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useCrm } from '../CrmContext';
-import type { CrmContact, CrmCompany, WorkspaceMember } from '../types';
+import { useCrmLang } from '../useCrmLang';
+import type { CrmContact, CrmCompany, WorkspaceMember, LeadStatus } from '../types';
 import { ContactFormModal } from '../components/ContactFormModal';
 import {
   Search,
@@ -33,12 +34,15 @@ export interface UnifiedClientItem {
   meetingStatus: string;
   ownerName: string;
   leadId: string;
+  dealAmount: number | null;
+  dealName: string | null;
   rawContact?: CrmContact;
   rawCompany?: CrmCompany;
 }
 
 export default function CrmContactsPage() {
   const { activeWorkspace, apiFetch, userRole } = useCrm();
+  const { ar, dir, tr, fmtNum, fmtCurrency } = useCrmLang();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -101,14 +105,11 @@ export default function CrmContactsPage() {
     void loadAllData();
   }, [loadAllData]);
 
-  // Unified client records: all individual clients, clinic doctors, clinics, and companies
+  // Unified Leads Pipeline: ALL contacts/leads (new, in-progress, won, lost) — 1 row per lead, never duplicated with companies
   const unifiedClients: UnifiedClientItem[] = useMemo(() => {
     const list: UnifiedClientItem[] = [];
 
-    // 1. In "كل العملاء" (All Clients): Add ONLY won/confirmed clients (تم الفوز)
-    // Non-won leads stay exclusively in "العملاء المحتملون (Leads)"
-    const wonContacts = contacts.filter((c) => c.lead_status === 'تم الفوز');
-    wonContacts.forEach((c) => {
+    contacts.forEach((c) => {
       const isCln = Boolean(
         (c.medical_specialty &&
           !c.medical_specialty.includes('علامة شخصية') &&
@@ -152,81 +153,68 @@ export default function CrmContactsPage() {
 
       const assigned = members.find((m) => m.user_id === c.contact_owner_id);
       const clean = (c.whatsapp_number || c.phone_number || '').replace(/\D/g, '');
+      const amt = c.deal_amount !== null && c.deal_amount !== undefined && Number(c.deal_amount) > 0
+        ? Number(c.deal_amount)
+        : null;
 
       list.push({
         id: c.id,
         sourceType: 'contact',
-        name: c.full_name,
+        name: c.full_name || c.business_name || tr('بدون اسم', 'Unnamed'),
         category: cat,
-        categoryBadge: isCln ? 'عيادة طبية' : isCmp ? 'شركة تجارية' : 'براند شخصي',
+        categoryBadge: isCln
+          ? tr('عيادة طبية', 'Medical Clinic')
+          : isCmp
+          ? tr('شركة تجارية', 'Company')
+          : tr('براند شخصي', 'Personal Brand'),
         activityLabel,
         subtitle: isCln
-          ? (c.business_name || c.medical_specialty || 'عيادة طبية')
+          ? (c.business_name || c.medical_specialty || tr('عيادة طبية', 'Medical Clinic'))
           : isCmp
-          ? (c.business_name || 'شركة تجارية')
-          : (c.business_name || 'براند شخصي'),
+          ? (c.business_name || tr('شركة تجارية', 'Company'))
+          : (c.business_name || tr('براند شخصي', 'Personal Brand')),
         phone: c.phone_number || '',
         cleanPhone: clean,
         leadStatus: c.lead_status || 'جديد',
         activityStatus: c.activity_status || 'معاودة الاتصال',
         meetingStatus: c.meeting_status || 'محجوز',
-        ownerName: assigned?.full_name || 'غير محدد',
+        ownerName: assigned?.full_name || tr('غير محدد', 'Unassigned'),
         leadId: c.lead_id || '',
+        dealAmount: amt,
+        dealName: c.deal_name || null,
         rawContact: c,
       });
     });
 
-    // 2. Add all companies and clinics (so clinics & companies created by user appear in "كل العملاء")
-    companies.forEach((comp) => {
-      const isCln = Boolean(
-        comp.industry === 'عيادة طبية' ||
-        comp.industry === 'مركز طبي' ||
-        comp.company_name.includes('عياد') ||
-        comp.company_name.includes('مركز طبي')
-      );
-      const cat: 'individual' | 'clinic' | 'company' = isCln ? 'clinic' : 'company';
-      const assigned = members.find((m) => m.user_id === comp.company_owner_id);
-      const clean = (comp.phone || '').replace(/\D/g, '');
-      const actLabel = comp.industry || (isCln ? 'عيادة طبية' : 'شركة تجارية');
-
-      list.push({
-        id: comp.id,
-        sourceType: 'company',
-        name: comp.company_name,
-        category: cat,
-        categoryBadge: isCln ? 'عيادة / مركز طبي' : 'شركة ومؤسسة',
-        activityLabel: actLabel,
-        subtitle: `${actLabel}${comp.city ? ' • ' + comp.city : ''}`,
-        phone: comp.phone || '',
-        cleanPhone: clean,
-        leadStatus: isCln ? 'عيادة معتمدة' : 'شركة معتمدة',
-        activityStatus: 'نشط',
-        meetingStatus: '—',
-        ownerName: assigned?.full_name || 'مسؤول المنشأة',
-        leadId: `COMP-${comp.id.slice(0, 6).toUpperCase()}`,
-        rawCompany: comp,
-      });
-    });
-
     return list;
-  }, [contacts, companies, members]);
+  }, [contacts, members, ar]);
 
-  // Counts for Category Pills
+  const isConvertedStatus = (status: string) =>
+    status === 'تم الفوز' || status === 'عقد' || status === 'عميل';
+
+  // Counts for Category Pills (active leads in Leads Pipeline, or matching selected status)
   const counts = useMemo(() => {
+    const baseList = statusFilter
+      ? unifiedClients
+      : unifiedClients.filter((item) => !isConvertedStatus(item.leadStatus));
     let ind = 0;
     let cln = 0;
     let cmp = 0;
-    unifiedClients.forEach((item) => {
+    baseList.forEach((item) => {
       if (item.category === 'individual') ind++;
       else if (item.category === 'clinic') cln++;
       else cmp++;
     });
-    return { all: unifiedClients.length, individual: ind, clinic: cln, company: cmp };
-  }, [unifiedClients]);
+    return { all: baseList.length, individual: ind, clinic: cln, company: cmp };
+  }, [unifiedClients, statusFilter]);
 
   // Filtered Clients based on Search, Category, Status, Owner
   const displayedClients = useMemo(() => {
     return unifiedClients.filter((item) => {
+      // By default in Leads Pipeline, hide converted (عقد / تم الفوز) leads since they moved to Won Deals
+      // (User can still view them by explicitly selecting عقد or تم الفوز in statusFilter)
+      if (!statusFilter && isConvertedStatus(item.leadStatus)) return false;
+
       // Category filter
       if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
 
@@ -284,17 +272,53 @@ export default function CrmContactsPage() {
     }
   }
 
-  function handleItemClick(item: UnifiedClientItem) {
-    if (item.sourceType === 'contact') {
-      navigate(`/crm/contacts/${item.id}`);
-    } else {
-      navigate(`/crm/companies`);
+  async function handleQuickStatusChange(contactId: string, newStatus: LeadStatus) {
+    if (!activeWorkspace) return;
+    // Optimistic update
+    setContacts((prev) =>
+      prev.map((c) => (c.id === contactId ? { ...c, lead_status: newStatus } : c))
+    );
+    try {
+      await apiFetch(`/api/crm/workspaces/${activeWorkspace.id}/contacts/${contactId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ lead_status: newStatus }),
+      });
+      if (newStatus === 'عقد') {
+        alert('📝 تم تحويل الليد إلى مرحلة (عقد) ونقله تلقائياً مع بروفايله الكامل إلى الصفقات المعتمدة (Won Deals).');
+      } else if (newStatus === 'تم الفوز') {
+        alert('🎉 تم تحويل الليد إلى عميل رسمي ونقله تلقائياً مع بروفايله الكامل إلى الصفقات المعتمدة (Won Deals).');
+      }
+      void loadAllData();
+    } catch (err: any) {
+      alert(`فشل تحديث حالة العميل: ${err.message}`);
+      void loadAllData();
     }
   }
 
+  async function handleQuickActivityChange(contactId: string, newActivity: string) {
+    if (!activeWorkspace) return;
+    setContacts((prev) =>
+      prev.map((c) => (c.id === contactId ? { ...c, activity_status: newActivity } : c))
+    );
+    try {
+      await apiFetch(`/api/crm/workspaces/${activeWorkspace.id}/contacts/${contactId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ activity_status: newActivity }),
+      });
+      void loadAllData();
+    } catch (err: any) {
+      alert(`فشل تحديث حالة النشاط: ${err.message}`);
+      void loadAllData();
+    }
+  }
+
+  function handleItemClick(item: UnifiedClientItem) {
+    navigate(`/crm/contacts/${item.id}`);
+  }
+
   return (
-    <div className="space-y-4" dir="rtl">
-      {/* 1. TOP CATEGORY PILLS BAR (كل العملاء: عيادات + شركات + أفراد) */}
+    <div className="space-y-4" dir={dir}>
+      {/* 1. TOP CATEGORY PILLS BAR */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-3.5 shadow-sm">
         <div className="flex flex-wrap items-center gap-1.5">
           <button
@@ -306,9 +330,9 @@ export default function CrmContactsPage() {
             }`}
           >
             <Users className="h-3.5 w-3.5" />
-            <span>كل عملاء تنجستين</span>
+            <span>{tr('جميع الليدز والعملاء (Leads Pipeline)', 'All Leads (Leads Pipeline)')}</span>
             <span className="rounded-full bg-black/15 px-1.5 py-0.2 text-[10px] font-mono">
-              {counts.all}
+              {fmtNum(counts.all)}
             </span>
           </button>
 
@@ -321,9 +345,9 @@ export default function CrmContactsPage() {
             }`}
           >
             <Sparkles className="h-3.5 w-3.5" />
-            <span>البراند الشخصي</span>
+            <span>{tr('البراند الشخصي', 'Personal Brand')}</span>
             <span className="rounded-full bg-black/15 px-1.5 py-0.2 text-[10px] font-mono">
-              {counts.individual}
+              {fmtNum(counts.individual)}
             </span>
           </button>
 
@@ -336,9 +360,9 @@ export default function CrmContactsPage() {
             }`}
           >
             <Stethoscope className="h-3.5 w-3.5" />
-            <span>العيادات والمراكز الطبية</span>
+            <span>{tr('العيادات والمراكز الطبية', 'Clinics & Medical Centers')}</span>
             <span className="rounded-full bg-black/15 px-1.5 py-0.2 text-[10px] font-mono">
-              {counts.clinic}
+              {fmtNum(counts.clinic)}
             </span>
           </button>
 
@@ -351,9 +375,9 @@ export default function CrmContactsPage() {
             }`}
           >
             <Building2 className="h-3.5 w-3.5" />
-            <span>الشركات والمؤسسات</span>
+            <span>{tr('الشركات والمؤسسات', 'Companies')}</span>
             <span className="rounded-full bg-black/15 px-1.5 py-0.2 text-[10px] font-mono">
-              {counts.company}
+              {fmtNum(counts.company)}
             </span>
           </button>
         </div>
@@ -364,7 +388,7 @@ export default function CrmContactsPage() {
           className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-600"
         >
           <Plus className="h-4 w-4" />
-          <span>إضافة عميل جديد (براند شخصي / عيادة / شركة)</span>
+          <span>{tr('إضافة ليد جديد (براند شخصي / عيادة / شركة)', 'Add New Lead (Brand / Clinic / Company)')}</span>
         </button>
       </div>
 
@@ -373,13 +397,13 @@ export default function CrmContactsPage() {
         <div className="flex flex-1 flex-wrap items-center gap-3">
           {/* Search Input */}
           <div className="relative min-w-[220px] flex-1">
-            <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <Search className={`absolute ${ar ? 'right-3' : 'left-3'} top-1/2 h-4 w-4 -translate-y-1/2 text-muted`} />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="بحث بالاسم، رقم الهاتف، النشاط، Lead ID..."
-              className="w-full rounded-xl border border-line bg-surface/50 py-2 pr-9 pl-3 text-xs outline-none transition focus:border-amber-500"
+              placeholder={tr('بحث بالاسم، رقم الهاتف، النشاط، Lead ID...', 'Search by name, phone, activity, Lead ID...')}
+              className={`w-full rounded-xl border border-line bg-surface/50 py-2 ${ar ? 'pr-9 pl-3' : 'pl-9 pr-3'} text-xs outline-none transition focus:border-amber-500`}
             />
           </div>
 
@@ -389,11 +413,12 @@ export default function CrmContactsPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-xl border border-line bg-surface px-3 py-2 text-xs text-ink outline-none transition focus:border-amber-500"
           >
-            <option value="">جميع الحالات</option>
-            <option value="جديد">جديد (New)</option>
-            <option value="قيد المتابعة">قيد المتابعة (In Progress)</option>
-            <option value="تم الفوز">تم الفوز / عميل (Won / Client)</option>
-            <option value="خاسر">خاسر (Lost)</option>
+            <option value="">{tr('الليدز النشطة (Leads Pipeline)', 'Active Leads (Leads Pipeline)')}</option>
+            <option value="جديد">{tr('جديد (New)', 'New')}</option>
+            <option value="قيد المتابعة">{tr('قيد المتابعة (In Progress)', 'In Progress')}</option>
+            <option value="خاسر">{tr('خاسر (Lost)', 'Lost')}</option>
+            <option value="عقد">{tr('عقد — المحوّلة لـ Won Deals', 'Contract — Moved to Won Deals')}</option>
+            <option value="تم الفوز">{tr('تم الفوز — المحوّلة لـ Won Deals', 'Won — Moved to Won Deals')}</option>
           </select>
 
           {/* Activity Status Filter */}
@@ -402,12 +427,12 @@ export default function CrmContactsPage() {
             onChange={(e) => setActivityFilter(e.target.value)}
             className="rounded-xl border border-line bg-surface px-3 py-2 text-xs text-ink outline-none transition focus:border-amber-500"
           >
-            <option value="">حالة النشاط (Activity)</option>
-            <option value="معاودة الاتصال">معاودة الاتصال (Call back)</option>
-            <option value="مهتم">مهتم (Interested)</option>
-            <option value="اهتمام مستقبلي">اهتمام مستقبلي (Future Interest)</option>
-            <option value="غير مهتم">غير مهتم (Not Interested)</option>
-            <option value="اجتماع">اجتماع (Meeting)</option>
+            <option value="">{tr('حالة النشاط (Activity)', 'Activity Status')}</option>
+            <option value="معاودة الاتصال">{tr('معاودة الاتصال (Call back)', 'Call Back')}</option>
+            <option value="مهتم">{tr('مهتم (Interested)', 'Interested')}</option>
+            <option value="اهتمام مستقبلي">{tr('اهتمام مستقبلي (Future Interest)', 'Future Interest')}</option>
+            <option value="غير مهتم">{tr('غير مهتم (Not Interested)', 'Not Interested')}</option>
+            <option value="اجتماع">{tr('اجتماع (Meeting)', 'Meeting')}</option>
           </select>
 
           {/* Owner Filter (Only for Owner/Manager) */}
@@ -417,7 +442,7 @@ export default function CrmContactsPage() {
               onChange={(e) => setOwnerFilter(e.target.value)}
               className="rounded-xl border border-line bg-surface px-3 py-2 text-xs text-ink outline-none transition focus:border-amber-500"
             >
-              <option value="">جميع مسؤولي المبيعات (Owner)</option>
+              <option value="">{tr('جميع مسؤولي المبيعات (Owner)', 'All Owners')}</option>
               {members.map((m) => (
                 <option key={m.user_id} value={m.user_id}>
                   {m.full_name} ({m.role})
@@ -437,7 +462,7 @@ export default function CrmContactsPage() {
               }}
               className="text-xs text-amber-600 hover:underline"
             >
-              مسح الفلاتر
+              {tr('مسح الفلاتر', 'Clear Filters')}
             </button>
           )}
         </div>
@@ -445,7 +470,7 @@ export default function CrmContactsPage() {
         {/* Sales badge */}
         {isSales && (
           <span className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-600 shadow-sm">
-            العملاء المخصصون لك فقط ({displayedClients.length})
+            {tr(`العملاء المخصصون لك فقط (${fmtNum(displayedClients.length)})`, `Assigned to you (${fmtNum(displayedClients.length)})`)}
           </span>
         )}
       </div>
@@ -453,32 +478,33 @@ export default function CrmContactsPage() {
       {/* 3. UNIFIED CLIENTS TABLE */}
       <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+          <table className={`w-full ${ar ? 'text-right' : 'text-left'} text-xs`}>
             <thead className="border-b border-line bg-surface/70 text-muted">
               <tr>
-                <th className="px-4 py-3 font-semibold">العميل / المنشأة (Name & ID)</th>
-                <th className="px-4 py-3 font-semibold">نوع العميل والنشاط</th>
-                <th className="px-4 py-3 font-semibold">الهاتف / واتساب</th>
-                <th className="px-4 py-3 font-semibold">حالة العميل / المنشأة</th>
-                <th className="px-4 py-3 font-semibold">حالة النشاط</th>
-                <th className="px-4 py-3 font-semibold">المسؤول (Owner)</th>
-                <th className="px-4 py-3 font-semibold text-center">إجراءات</th>
+                <th className="px-4 py-3 font-semibold">{tr('الليد / العميل (Name & ID)', 'Lead / Client (Name & ID)')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('نوع العميل والنشاط', 'Type & Activity')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('الهاتف / واتساب', 'Phone / WhatsApp')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('الباكيدج / السعر', 'Package / Price')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('حالة العميل (Lead Status)', 'Lead Status')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('حالة النشاط', 'Activity Status')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('المسؤول (Owner)', 'Owner')}</th>
+                <th className="px-4 py-3 font-semibold text-center">{tr('إجراءات', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center text-muted">
+                  <td colSpan={8} className="py-16 text-center text-muted">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <div className="h-6 w-6 animate-spin rounded-full border-2 border-amber-500 border-t-transparent" />
-                      <span>جاري تحميل قائمة عملاء تنجستين الشاملة...</span>
+                      <span>{tr('جاري تحميل قائمة Leads Pipeline...', 'Loading Leads Pipeline...')}</span>
                     </div>
                   </td>
                 </tr>
               ) : displayedClients.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center text-muted">
-                    لا يوجد عملاء يطابقون معايير البحث أو الفلتر المحدد
+                  <td colSpan={8} className="py-16 text-center text-muted">
+                    {tr('لا يوجد ليدز أو عملاء يطابقون معايير البحث أو الفلتر المحدد', 'No leads match your current search or filter criteria')}
                   </td>
                 </tr>
               ) : (
@@ -565,31 +591,69 @@ export default function CrmContactsPage() {
                           className="inline-flex items-center gap-1 text-[11px] text-emerald-600 hover:underline font-mono"
                         >
                           <MessageCircle className="h-3 w-3" />
-                          <span>واتساب مباشر</span>
+                          <span>{tr('واتساب مباشر', 'Direct WhatsApp')}</span>
                         </a>
                       ) : null}
                     </td>
 
-                    {/* Status */}
+                    {/* Package & Price */}
                     <td className="px-4 py-3">
-                      <span
-                        className={`inline-block rounded-lg px-2.5 py-1 text-[11px] font-bold border ${
-                          item.leadStatus === 'تم الفوز' || item.leadStatus === 'عميل' || item.leadStatus.includes('معتمدة')
-                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600'
-                            : item.leadStatus === 'قيد المتابعة'
-                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-600'
-                            : item.leadStatus === 'خاسر'
-                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-600'
-                            : 'bg-blue-500/10 border-blue-500/30 text-blue-600'
-                        }`}
-                      >
-                        {item.leadStatus}
-                      </span>
+                      {item.dealAmount && item.dealAmount > 0 ? (
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span className="font-mono font-bold text-xs text-emerald-600">
+                            {fmtCurrency(item.dealAmount)}
+                          </span>
+                          {item.dealName && item.dealName !== item.name && (
+                            <span className="text-[10px] text-muted truncate max-w-[140px]">
+                              {item.dealName}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="inline-block rounded-lg border border-dashed border-line bg-surface/60 px-2 py-1 text-[11px] text-muted">
+                          {tr('لم يحدد أي باكيدج', 'No package set')}
+                        </span>
+                      )}
                     </td>
 
-                    {/* Activity Status */}
-                    <td className="px-4 py-3 text-muted">
-                      <span className="font-medium text-ink">{item.activityStatus}</span>
+                    {/* Inline Lead Status Selector (moves to Won Deals on عقد or تم الفوز) */}
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={item.leadStatus}
+                        onChange={(e) => void handleQuickStatusChange(item.id, e.target.value as LeadStatus)}
+                        className={`rounded-lg px-2.5 py-1 text-[11px] font-bold border outline-none cursor-pointer transition ${
+                          item.leadStatus === 'تم الفوز' || item.leadStatus === 'عميل'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700'
+                            : item.leadStatus === 'عقد'
+                            ? 'bg-teal-500/10 border-teal-500/30 text-teal-700'
+                            : item.leadStatus === 'قيد المتابعة'
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-700'
+                            : item.leadStatus === 'خاسر'
+                            ? 'bg-rose-500/10 border-rose-500/30 text-rose-700'
+                            : 'bg-blue-500/10 border-blue-500/30 text-blue-700'
+                        }`}
+                      >
+                        <option value="جديد">{tr('جديد (New)', 'New')}</option>
+                        <option value="قيد المتابعة">{tr('قيد المتابعة', 'In Progress')}</option>
+                        <option value="عقد">{tr('عقد (Contract ➔ Won Deals)', 'Contract ➔ Won Deals')}</option>
+                        <option value="تم الفوز">{tr('تم الفوز (Won Deal)', 'Won Deal')}</option>
+                        <option value="خاسر">{tr('خاسر (Lost)', 'Lost')}</option>
+                      </select>
+                    </td>
+
+                    {/* Inline Activity Status Selector */}
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={item.activityStatus}
+                        onChange={(e) => void handleQuickActivityChange(item.id, e.target.value)}
+                        className="rounded-lg border border-line bg-surface/60 px-2 py-1 text-[11px] font-medium text-ink outline-none cursor-pointer focus:border-amber-500"
+                      >
+                        <option value="معاودة الاتصال">{tr('معاودة الاتصال', 'Call Back')}</option>
+                        <option value="مهتم">{tr('مهتم', 'Interested')}</option>
+                        <option value="اهتمام مستقبلي">{tr('اهتمام مستقبلي', 'Future Interest')}</option>
+                        <option value="غير مهتم">{tr('غير مهتم', 'Not Interested')}</option>
+                        <option value="اجتماع">{tr('اجتماع', 'Meeting')}</option>
+                      </select>
                     </td>
 
                     {/* Owner */}
@@ -647,15 +711,26 @@ export default function CrmContactsPage() {
         </div>
 
         <div className="border-t border-line px-4 py-3 text-xs text-muted flex items-center justify-between">
-          <span>إجمالي عملاء تنجستين المسجلين: {unifiedClients.length}</span>
-          <span>عرض {displayedClients.length} من {unifiedClients.length}</span>
+          <span>
+            {tr(
+              `إجمالي الليدز والعملاء المسجلين: ${fmtNum(counts.all)}`,
+              `Total Leads in Pipeline: ${fmtNum(counts.all)}`
+            )}
+          </span>
+          <span>
+            {tr(
+              `عرض ${fmtNum(displayedClients.length)} من ${fmtNum(counts.all)}`,
+              `Showing ${fmtNum(displayedClients.length)} of ${fmtNum(counts.all)}`
+            )}
+          </span>
         </div>
       </div>
 
-      {/* Modal: Create Contact with All 25 Fields & 3 Categories (Defaults to Won Client) */}
+      {/* Modal: Create Lead (No Step 3 Campaign/Pipeline; Step 3 is only inside Client Profile edits) */}
       {showCreateModal && (
         <ContactFormModal
-          defaultLeadStatus="تم الفوز"
+          defaultLeadStatus="جديد"
+          hidePipeline={true}
           onClose={() => setShowCreateModal(false)}
           onSuccess={() => {
             setShowCreateModal(false);
@@ -666,10 +741,11 @@ export default function CrmContactsPage() {
         />
       )}
 
-      {/* Modal: Edit Contact */}
+      {/* Modal: Quick Edit Lead */}
       {editingContact && (
         <ContactFormModal
           contact={editingContact}
+          hidePipeline={true}
           onClose={() => setEditingContact(null)}
           onSuccess={() => {
             setEditingContact(null);

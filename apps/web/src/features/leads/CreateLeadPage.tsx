@@ -199,10 +199,10 @@ export default function CreateLeadPage() {
     }
 
     const finalAdId = (ad && ad !== 'no_ad') ? ad : null;
-    const finalAttribution = (ad && ad !== 'no_ad')
+    const finalAttribution: Payload['attribution_status'] = finalAdId
       ? 'exact_ad'
       : ['paid_instagram', 'paid_facebook'].includes(source)
-        ? (ad === 'no_ad' ? 'not_applicable' : 'unknown')
+        ? 'unknown'
         : 'not_applicable';
 
     const payload: Payload = pending ?? {
@@ -498,7 +498,7 @@ export default function CreateLeadPage() {
                       : 'Appointment in the pending request: '}
 
                     {new Intl.DateTimeFormat(
-                      ar ? 'ar-EG' : 'en-GB',
+                      ar ? 'ar-EG-u-nu-latn' : 'en-GB',
                       {
                         timeZone: 'Africa/Cairo',
                         dateStyle: 'medium',

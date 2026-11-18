@@ -76,8 +76,11 @@ adminRouter.get('/status', async (_req, res) => {
     let isCompanyOwner = false;
     let isCompanyManager = false;
     let isClientCompany = false;
+    let isBrandOwner = false;
+    let isBrandManager = false;
+    let isClientBrand = false;
 
-    // If not a Tungsten internal platform user, check workspace memberships for client company accounts
+    // If not a Tungsten internal platform user, check workspace memberships for client company or brand accounts
     let isClinicUser = false;
     let clinicName: string | null = null;
     let clinicRole: string | null = null;
@@ -106,27 +109,45 @@ adminRouter.get('/status', async (_req, res) => {
           if (ws && ws.is_active) {
             if (ws.workspace_type === 'client_company') {
               isClientCompany = true;
-            }
-            if (m.role === 'company_owner' || m.role === 'owner') {
-              isOwner = true;
-              isCompanyOwner = true;
-              internalRole = 'company_owner';
-              break;
-            } else if (m.role === 'company_manager' || m.role === 'manager') {
-              isManager = true;
-              isCompanyManager = true;
-              internalRole = 'company_manager';
-              break;
-            } else if (m.role === 'sales') {
-              isSales = true;
-              internalRole = 'sales';
+              if (m.role === 'company_owner' || m.role === 'owner') {
+                isOwner = true;
+                isCompanyOwner = true;
+                internalRole = 'company_owner';
+                break;
+              } else if (m.role === 'company_manager' || m.role === 'manager') {
+                isManager = true;
+                isCompanyManager = true;
+                internalRole = 'company_manager';
+                break;
+              } else if (m.role === 'sales') {
+                isSales = true;
+                internalRole = 'sales';
+              }
+            } else if (ws.workspace_type === 'client_brand' || ws.workspace_type === 'brand') {
+              isClientBrand = true;
+              if (m.role === 'brand_owner' || m.role === 'owner') {
+                isOwner = true;
+                isBrandOwner = true;
+                internalRole = 'brand_owner';
+                break;
+              } else if (m.role === 'brand_manager' || m.role === 'manager') {
+                isManager = true;
+                isBrandManager = true;
+                internalRole = 'brand_manager';
+                break;
+              } else if (m.role === 'sales') {
+                isSales = true;
+                internalRole = 'sales';
+              } else {
+                internalRole = m.role;
+              }
             }
           }
         }
       }
 
-      // If not any internal or client company role, verify if user belongs to clinics
-      if (!isCompanyOwner && !isCompanyManager && !isSales) {
+      // If not any internal, client company, or client brand role, verify if user belongs to clinics
+      if (!isCompanyOwner && !isCompanyManager && !isBrandOwner && !isBrandManager && !isClientCompany && !isClientBrand && !isSales && !internalRole) {
         const { data: cm } = await adminClient
           .from('clinic_memberships')
           .select(`
@@ -147,8 +168,8 @@ adminRouter.get('/status', async (_req, res) => {
           clinicRole = cm.role;
           clinicName = (cm.clinics as any)?.name || 'العيادة';
         } else {
-          // Default user with no internal CRM workspace is treated as clinic / basic user
-          isClinicUser = true;
+          // If the user has no clinic either, do not force clinic user mode
+          isClinicUser = false;
         }
       }
     }
@@ -161,6 +182,9 @@ adminRouter.get('/status', async (_req, res) => {
       is_company_owner: isCompanyOwner,
       is_company_manager: isCompanyManager,
       is_client_company: isClientCompany,
+      is_brand_owner: isBrandOwner,
+      is_brand_manager: isBrandManager,
+      is_client_brand: isClientBrand,
       is_clinic_user: isClinicUser,
       clinic_name: clinicName,
       clinic_role: clinicRole,

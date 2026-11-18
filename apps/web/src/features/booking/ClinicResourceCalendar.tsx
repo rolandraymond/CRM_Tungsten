@@ -103,7 +103,7 @@ function availabilityError(code: string, ar: boolean) {
 function CalendarWorkspace({ token, clinic, isAdmin, clinics: contextClinics, onClinicChange }: WorkspaceContext) {
   const { i18n } = useTranslation();
   const ar = (i18n.resolvedLanguage ?? i18n.language).startsWith('ar');
-  const locale = ar ? 'ar-EG' : 'en-GB';
+  const locale = ar ? 'ar-EG-u-nu-latn' : 'en-GB';
 
   const statusQuery = useGet<{
     is_admin: boolean;

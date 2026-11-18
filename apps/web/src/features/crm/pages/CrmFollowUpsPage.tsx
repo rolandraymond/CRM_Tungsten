@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useCrm } from '../CrmContext';
+import { useCrmLang } from '../useCrmLang';
 import type { CrmActivity, CrmContact } from '../types';
 import {
   Clock,
@@ -19,6 +20,7 @@ import {
 
 export default function CrmFollowUpsPage() {
   const { activeWorkspace, apiFetch } = useCrm();
+  const { dir, tr, fmtNum, fmtDate } = useCrmLang();
 
   const [activities, setActivities] = useState<CrmActivity[]>([]);
   const [contacts, setContacts] = useState<CrmContact[]>([]);
@@ -99,12 +101,8 @@ export default function CrmFollowUpsPage() {
   function formatDateTime(dt?: string | null) {
     if (!dt) return null;
     const dObj = new Date(dt);
-    const dateStr = dObj.toLocaleDateString('ar-EG', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-    const timeStr = dObj.toLocaleTimeString('ar-EG', {
+    const dateStr = fmtDate(dt);
+    const timeStr = dObj.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -244,7 +242,7 @@ export default function CrmFollowUpsPage() {
                           : 'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20'
                       }`}
                     >
-                      {item.completion_status === 'مكتمل' ? 'إعادة فتح' : 'إتمام المتابعة'}
+                      {item.completion_status === 'مكتمل' ? tr('إعادة فتح', 'Reopen') : tr('إتمام المتابعة', 'Mark Done')}
                     </button>
                   </div>
                 </div>
@@ -257,7 +255,7 @@ export default function CrmFollowUpsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={dir}>
       {/* Top Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
@@ -269,7 +267,7 @@ export default function CrmFollowUpsPage() {
                 : 'border border-line bg-surface/50 text-muted hover:text-ink'
             }`}
           >
-            جميع المتابعات النشطة ({overdue.length + dueToday.length + upcoming.length})
+            {tr(`جميع المتابعات النشطة (${fmtNum(overdue.length + dueToday.length + upcoming.length)})`, `All Active Follow-ups (${fmtNum(overdue.length + dueToday.length + upcoming.length)})`)}
           </button>
           <button
             onClick={() => setActiveTab('today')}
@@ -279,7 +277,7 @@ export default function CrmFollowUpsPage() {
                 : 'border border-line bg-surface/50 text-muted hover:text-ink'
             }`}
           >
-            مستحقة اليوم ({dueToday.length})
+            {tr(`مستحقة اليوم (${fmtNum(dueToday.length)})`, `Due Today (${fmtNum(dueToday.length)})`)}
           </button>
           <button
             onClick={() => setActiveTab('overdue')}
@@ -289,7 +287,7 @@ export default function CrmFollowUpsPage() {
                 : 'border border-line bg-surface/50 text-muted hover:text-ink'
             }`}
           >
-            متأخرة ({overdue.length})
+            {tr(`متأخرة (${fmtNum(overdue.length)})`, `Overdue (${fmtNum(overdue.length)})`)}
           </button>
           <button
             onClick={() => setActiveTab('upcoming')}
@@ -299,7 +297,7 @@ export default function CrmFollowUpsPage() {
                 : 'border border-line bg-surface/50 text-muted hover:text-ink'
             }`}
           >
-            قادمة ({upcoming.length})
+            {tr(`قادمة (${fmtNum(upcoming.length)})`, `Upcoming (${fmtNum(upcoming.length)})`)}
           </button>
           <button
             onClick={() => setActiveTab('completed')}
@@ -309,7 +307,7 @@ export default function CrmFollowUpsPage() {
                 : 'border border-line bg-surface/50 text-muted hover:text-ink'
             }`}
           >
-            المكتملة ({completed.length})
+            {tr(`المكتملة (${fmtNum(completed.length)})`, `Completed (${fmtNum(completed.length)})`)}
           </button>
         </div>
 
@@ -318,52 +316,52 @@ export default function CrmFollowUpsPage() {
           className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-600"
         >
           <Plus className="h-4 w-4" />
-          <span>جدولة متابعة جديدة</span>
+          <span>{tr('جدولة متابعة جديدة', 'Schedule Follow-up')}</span>
         </button>
       </div>
 
       {loading ? (
-        <div className="py-16 text-center text-xs text-muted">جاري تحميل سجل المتابعات...</div>
+        <div className="py-16 text-center text-xs text-muted">{tr('جاري تحميل سجل المتابعات...', 'Loading follow-ups...')}</div>
       ) : (
         <div className="space-y-6">
           {(activeTab === 'all' || activeTab === 'overdue') &&
             renderGroup(
-              'متابعات متأخرة تحتاج اهتماماً عاجلاً',
+              tr('متابعات متأخرة تحتاج اهتماماً عاجلاً', 'Overdue Follow-ups Requiring Attention'),
               overdue,
               AlertTriangle,
               'border-rose-500/30',
               'bg-rose-500/10 text-rose-600',
-              'لا توجد متابعات متأخرة حالياً، رائع!'
+              tr('لا توجد متابعات متأخرة حالياً، رائع!', 'No overdue follow-ups right now!')
             )}
 
           {(activeTab === 'all' || activeTab === 'today') &&
             renderGroup(
-              'متابعات مستحقة اليوم',
+              tr('متابعات مستحقة اليوم', 'Due Today'),
               dueToday,
               Clock,
               'border-amber-500/30',
               'bg-amber-500/10 text-amber-600',
-              'لا توجد متابعات مستحقة لليوم'
+              tr('لا توجد متابعات مستحقة لليوم', 'No follow-ups due today')
             )}
 
           {(activeTab === 'all' || activeTab === 'upcoming') &&
             renderGroup(
-              'متابعات قادمة مجدولة',
+              tr('متابعات قادمة مجدولة', 'Upcoming Scheduled Follow-ups'),
               upcoming,
               Calendar,
               'border-blue-500/30',
               'bg-blue-500/10 text-blue-600',
-              'لا توجد متابعات مجدولة قادمة'
+              tr('لا توجد متابعات مجدولة قادمة', 'No upcoming follow-ups scheduled')
             )}
 
           {(activeTab === 'all' || activeTab === 'completed') &&
             renderGroup(
-              'المتابعات المكتملة',
+              tr('المتابعات المكتملة', 'Completed Follow-ups'),
               completed,
               Check,
               'border-emerald-500/30',
               'bg-emerald-500/10 text-emerald-600',
-              'لا توجد متابعات مكتملة بعد'
+              tr('لا توجد متابعات مكتملة بعد', 'No completed follow-ups yet')
             )}
         </div>
       )}
