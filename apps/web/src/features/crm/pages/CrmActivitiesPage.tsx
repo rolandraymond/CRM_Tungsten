@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCrm } from '../CrmContext';
+import { useCrmLang } from '../useCrmLang';
 import type { CrmActivity, CrmContact, CrmCompany, CrmDeal, WorkspaceMember, ActivityType } from '../types';
 import {
   Plus,
@@ -15,6 +16,7 @@ import {
 
 export default function CrmActivitiesPage() {
   const { activeWorkspace, apiFetch } = useCrm();
+  const { ar, dir, tr } = useCrmLang();
 
   const [activities, setActivities] = useState<CrmActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -101,16 +103,16 @@ export default function CrmActivitiesPage() {
   }
 
   const tabOptions = [
-    { id: 'all', label: 'الكل' },
-    { id: 'مهمة', label: 'مهام' },
-    { id: 'مكالمة', label: 'مكالمات' },
-    { id: 'اجتماع', label: 'اجتماعات' },
-    { id: 'متابعة', label: 'متابعات' },
-    { id: 'ملاحظة', label: 'ملاحظات' },
+    { id: 'all', label: tr('الكل', 'All') },
+    { id: 'مهمة', label: tr('مهام', 'Tasks') },
+    { id: 'مكالمة', label: tr('مكالمات', 'Calls') },
+    { id: 'اجتماع', label: tr('اجتماعات', 'Meetings') },
+    { id: 'متابعة', label: tr('متابعات', 'Follow-ups') },
+    { id: 'ملاحظة', label: tr('ملاحظات', 'Notes') },
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" dir={dir}>
       {/* Tabs and Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
@@ -133,9 +135,9 @@ export default function CrmActivitiesPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-xl border border-line bg-surface/50 px-3 py-1.5 text-xs font-medium text-ink outline-none"
           >
-            <option value="all">جميع الحالات</option>
-            <option value="قيد الانتظار">قيد الانتظار</option>
-            <option value="مكتمل">مكتمل</option>
+            <option value="all">{tr('جميع الحالات', 'All Statuses')}</option>
+            <option value="قيد الانتظار">{tr('قيد الانتظار', 'Pending')}</option>
+            <option value="مكتمل">{tr('مكتمل', 'Completed')}</option>
           </select>
         </div>
 
@@ -144,16 +146,16 @@ export default function CrmActivitiesPage() {
           className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-600"
         >
           <Plus className="h-4 w-4" />
-          <span>إضافة نشاط أو مهمة</span>
+          <span>{tr('إضافة نشاط أو مهمة', 'Add Activity / Task')}</span>
         </button>
       </div>
 
       {/* Activities List */}
       <div className="rounded-2xl border border-line bg-surface shadow-sm">
         {loading ? (
-          <div className="py-16 text-center text-xs text-muted">جاري تحميل الأنشطة...</div>
+          <div className="py-16 text-center text-xs text-muted">{tr('جاري تحميل الأنشطة...', 'Loading activities...')}</div>
         ) : activities.length === 0 ? (
-          <div className="py-16 text-center text-xs text-muted">لا توجد أنشطة مسجلة في هذا القسم</div>
+          <div className="py-16 text-center text-xs text-muted">{tr('لا توجد أنشطة مسجلة في هذا القسم', 'No activities logged in this section')}</div>
         ) : (
           <div className="divide-y divide-line/60">
             {activities.map((act) => {
@@ -203,11 +205,11 @@ export default function CrmActivitiesPage() {
                         {act.crm_companies?.company_name && (
                           <span className="flex items-center gap-1">
                             <Building2 className="h-3 w-3 text-muted" />
-                            <span>الشركة: <strong className="text-ink">{act.crm_companies.company_name}</strong></span>
+                            <span>{tr('الشركة:', 'Company:')} <strong className="text-ink">{act.crm_companies.company_name}</strong></span>
                           </span>
                         )}
                         {act.crm_deals?.deal_name && (
-                          <span>الصفقة: <strong className="text-ink">{act.crm_deals.deal_name}</strong></span>
+                          <span>{tr('الصفقة:', 'Deal:')} <strong className="text-ink">{act.crm_deals.deal_name}</strong></span>
                         )}
 
                         {/* Date and Hour/Time (التاريخ والساعة لجميع المهام والأنشطة) */}
@@ -215,12 +217,12 @@ export default function CrmActivitiesPage() {
                           const dt = act.due_date || act.start_date || act.performed_at || act.created_at;
                           if (!dt) return null;
                           const dObj = new Date(dt);
-                          const dateStr = dObj.toLocaleDateString('ar-EG', {
+                          const dateStr = dObj.toLocaleDateString(ar ? 'ar-EG-u-nu-latn' : 'en-US', {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric',
                           });
-                          const timeStr = dObj.toLocaleTimeString('ar-EG', {
+                          const timeStr = dObj.toLocaleTimeString(ar ? 'ar-EG-u-nu-latn' : 'en-US', {
                             hour: '2-digit',
                             minute: '2-digit',
                           });
@@ -233,7 +235,7 @@ export default function CrmActivitiesPage() {
                               <span className="text-line">•</span>
                               <Clock className="h-3.5 w-3.5 text-blue-500" />
                               <span className="font-bold text-amber-600">{timeStr}</span>
-                              <span className="text-[10px] text-muted">({isDueDate ? 'استحقاق' : 'تسجيل'})</span>
+                              <span className="text-[10px] text-muted">({isDueDate ? tr('استحقاق', 'Due') : tr('تسجيل', 'Logged')})</span>
                             </div>
                           );
                         })()}

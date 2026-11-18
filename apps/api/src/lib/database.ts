@@ -276,7 +276,7 @@ export class NativeQuery<T = any[]> implements PromiseLike<DatabaseResult<T>> {
         const projection = this.head ? 'NULL' : await compiler.projection(this.table, 'q', nodes);
         const ordering: string[] = [];
         for (const order of this.orders) ordering.push(`${await compiler.column(this.table, order.column, 'q')} ${order.ascending ? 'ASC' : 'DESC'}${order.nullsFirst === undefined ? '' : order.nullsFirst ? ' NULLS FIRST' : ' NULLS LAST'}`);
-        query = `SELECT ${projection} AS data FROM public.${identifier(this.table)} q${filters}${ordering.length ? ' ORDER BY ' + ordering.join(',') : ''} LIMIT ${compiler.bind(this.head ? 0 : this.singular ? 2 : this.take)} OFFSET ${compiler.bind(this.skip)}`;
+        query = `SELECT ${projection} AS data FROM public.${identifier(this.table)} q${filters}${ordering.length ? ' ORDER BY ' + ordering.join(',') : ''} LIMIT ${compiler.bind(this.head ? 0 : this.singular ? Math.min(this.take, 2) : this.take)} OFFSET ${compiler.bind(this.skip)}`;
       } else {
         let statement: string;
         const encode = (column: string, value: unknown) => {

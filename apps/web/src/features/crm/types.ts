@@ -1,4 +1,4 @@
-export type WorkspaceType = 'tungsten_internal' | 'client_company';
+export type WorkspaceType = 'tungsten_internal' | 'client_company' | 'client_brand' | 'brand';
 
 export type WorkspaceRole =
   | 'owner'
@@ -6,6 +6,12 @@ export type WorkspaceRole =
   | 'sales'
   | 'company_owner'
   | 'company_manager'
+  | 'brand_owner'
+  | 'brand_manager'
+  | 'content_creator'
+  | 'videographer_editor'
+  | 'customer_service'
+  | 'moderator'
   | 'platform_admin';
 
 export interface Workspace {
@@ -37,6 +43,7 @@ export interface WorkspaceMember {
 export type LeadStatus =
   | 'جديد'
   | 'قيد المتابعة'
+  | 'عقد'
   | 'تم الفوز'
   | 'خاسر'
   | 'مؤهل'
@@ -167,6 +174,10 @@ export interface CrmContact {
   owner_email?: string;
   company?: CrmCompany | null;
   plan_details?: SocialLensPlanDetails | null;
+  deal_id?: string | null;
+  deal_name?: string | null;
+  deal_stage?: DealStage | null;
+  deal_amount?: number | null;
 }
 
 export interface CrmCompany {

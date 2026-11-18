@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCrm } from '../CrmContext';
+import { useCrmLang } from '../useCrmLang';
 import type { WorkspaceMember, WorkspaceRole } from '../types';
 import {
   UserPlus,
@@ -10,6 +11,7 @@ import {
 
 export default function CrmTeamPage() {
   const { activeWorkspace, apiFetch, userRole, isPlatformAdmin, isTungstenInternal } = useCrm();
+  const { ar, dir, tr } = useCrmLang();
 
   const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,26 +62,35 @@ export default function CrmTeamPage() {
     sales: { label: 'مسؤول مبيعات (Sales Rep)', class: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' },
     company_owner: { label: 'مالك الشركة (Company Owner)', class: 'bg-purple-500/10 text-purple-600 border-purple-500/20' },
     company_manager: { label: 'مدير الشركة (Company Manager)', class: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20' },
+    brand_owner: { label: 'مالك البراند (Brand Owner)', class: 'bg-sky-500/10 text-sky-600 border-sky-500/20' },
+    brand_manager: { label: 'مدير البراند (Brand Manager)', class: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20' },
+    content_creator: { label: 'صانع محتوى (Content Creator)', class: 'bg-violet-500/10 text-violet-600 border-violet-500/20' },
+    videographer_editor: { label: 'مصور ومونتير (Video Editor)', class: 'bg-pink-500/10 text-pink-600 border-pink-500/20' },
+    customer_service: { label: 'خدمة عملاء (Customer Service)', class: 'bg-teal-500/10 text-teal-600 border-teal-500/20' },
+    moderator: { label: 'مشرف / موديريتور (Moderator)', class: 'bg-orange-500/10 text-orange-600 border-orange-500/20' },
     platform_admin: { label: 'مدير المنصة (Platform Admin)', class: 'bg-rose-500/10 text-rose-600 border-rose-500/20' },
   };
 
-  const managers = members.filter((m) => m.role === 'manager' || m.role === 'owner' || m.role === 'company_owner');
+  const managers = members.filter((m) =>
+    ['manager', 'owner', 'company_owner', 'brand_owner', 'brand_manager'].includes(m.role)
+  );
 
   // Only Owner, Moderator, or Platform Admin can add or edit accounts. Sales Manager cannot add/edit accounts!
   const canManageTeam =
     userRole === 'owner' ||
     userRole === 'company_owner' ||
-    (userRole as any) === 'moderator' ||
+    userRole === 'brand_owner' ||
+    userRole === 'moderator' ||
     isPlatformAdmin;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={dir}>
       {/* Team Header & Actions */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 shadow-sm">
         <div>
-          <h3 className="text-sm font-bold text-ink">أعضاء وهيكل مساحة العمل</h3>
+          <h3 className="text-sm font-bold text-ink">{tr('أعضاء وهيكل مساحة العمل', 'Workspace Team & Hierarchy')}</h3>
           <p className="text-xs text-muted">
-            إدارة صلاحيات الفريق، والتبعية الهرمية بين المدراء ومسؤولي المبيعات
+            {tr('إدارة صلاحيات الفريق، والتبعية الهرمية بين المدراء ومسؤولي المبيعات', 'Manage team roles, permissions, and manager/sales hierarchy')}
           </p>
         </div>
 
@@ -89,7 +100,7 @@ export default function CrmTeamPage() {
             className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-600"
           >
             <UserPlus className="h-4 w-4" />
-            <span>إضافة عضو جديد</span>
+            <span>{tr('إضافة عضو جديد', 'Add Team Member')}</span>
           </button>
         )}
       </div>
@@ -97,28 +108,28 @@ export default function CrmTeamPage() {
       {/* Members Table */}
       <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
+          <table className={`w-full ${ar ? 'text-right' : 'text-left'} text-xs`}>
             <thead className="border-b border-line bg-surface/70 text-muted">
               <tr>
-                <th className="px-4 py-3 font-semibold">العضو</th>
-                <th className="px-4 py-3 font-semibold">الدور والصلاحية</th>
-                <th className="px-4 py-3 font-semibold">المدير المسؤول (Manager)</th>
-                <th className="px-4 py-3 font-semibold">الحالة</th>
-                <th className="px-4 py-3 font-semibold">تاريخ الانضمام</th>
-                {canManageTeam && <th className="px-4 py-3 font-semibold text-center">إجراءات</th>}
+                <th className="px-4 py-3 font-semibold">{tr('العضو', 'Member')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('الدور والصلاحية', 'Role & Permissions')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('المدير المسؤول (Manager)', 'Direct Manager')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('الحالة', 'Status')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('تاريخ الانضمام', 'Joined Date')}</th>
+                {canManageTeam && <th className="px-4 py-3 font-semibold text-center">{tr('إجراءات', 'Actions')}</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
               {loading ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-muted">
-                    جاري تحميل الأعضاء...
+                    {tr('جاري تحميل الأعضاء...', 'Loading team members...')}
                   </td>
                 </tr>
               ) : members.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center text-muted">
-                    لا يوجد أعضاء مسجلين
+                    {tr('لا يوجد أعضاء مسجلين', 'No team members found')}
                   </td>
                 </tr>
               ) : (
@@ -163,11 +174,11 @@ export default function CrmTeamPage() {
                             : 'bg-rose-500/10 text-rose-600'
                         }`}
                       >
-                        {member.is_active ? 'نشط' : 'معطل'}
+                        {member.is_active ? tr('نشط', 'Active') : tr('معطل', 'Inactive')}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-muted">
-                      {new Date(member.created_at).toLocaleDateString('ar-EG')}
+                    <td className="px-4 py-3 font-mono text-muted">
+                      {new Date(member.created_at).toLocaleDateString(ar ? 'ar-EG-u-nu-latn' : 'en-US')}
                     </td>
                     {canManageTeam && (
                       <td className="px-4 py-3 text-center">

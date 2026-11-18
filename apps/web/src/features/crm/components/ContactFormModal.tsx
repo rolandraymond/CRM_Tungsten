@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useCrm } from '../CrmContext';
+import { useCrmLang } from '../useCrmLang';
 import type { CrmContact, CrmCompany, WorkspaceMember, LeadStatus, ActivityStatus, MeetingStatus } from '../types';
 import { X } from 'lucide-react';
 
 export interface ContactFormModalProps {
   contact?: CrmContact;
   defaultLeadStatus?: LeadStatus;
+  hidePipeline?: boolean;
   onClose: () => void;
   onSuccess: (updated?: CrmContact) => void;
   companies: CrmCompany[];
@@ -15,12 +17,14 @@ export interface ContactFormModalProps {
 export function ContactFormModal({
   contact,
   defaultLeadStatus,
+  hidePipeline = false,
   onClose,
   onSuccess,
   companies,
   members,
 }: ContactFormModalProps) {
   const { activeWorkspace, apiFetch } = useCrm();
+  const { dir, tr } = useCrmLang();
 
   // Client Category: Individual (e.g. video shooting), Clinic Doctor, or Company Client
   const initialCategory = contact?.medical_specialty
@@ -66,6 +70,18 @@ export function ContactFormModal({
   const [companyId, setCompanyId] = useState(contact?.company_id || '');
   const [createNewEntity, setCreateNewEntity] = useState(false);
 
+  // Optional Manual Package Price & Name
+  const [packageName, setPackageName] = useState(
+    contact?.plan_details?.plan_name || contact?.deal_name || ''
+  );
+  const [dealAmount, setDealAmount] = useState(
+    contact?.deal_amount && Number(contact.deal_amount) > 0
+      ? String(contact.deal_amount)
+      : contact?.plan_details?.price && Number(contact.plan_details.price) > 0
+      ? String(contact.plan_details.price)
+      : ''
+  );
+
   // 3. Campaign & Pipeline Fields
   const [sourcePlatform, setSourcePlatform] = useState(contact?.source_platform || 'Meta Ads');
   const [adId, setAdId] = useState(contact?.ad_id || 'AD-CAMPAIGN-01');
@@ -87,6 +103,7 @@ export function ContactFormModal({
   );
 
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   // Filter clinics vs companies from list
   const clinicsList = companies.filter(
@@ -98,8 +115,22 @@ export function ContactFormModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!activeWorkspace) return;
+    if (!activeWorkspace || submitting || submittingRef.current) return;
+
+    if (!fullName.trim()) {
+      setDuplicateError('يرجى إدخال اسم العميل / الليد بالكامل');
+      setActiveFormTab('identity');
+      return;
+    }
+    if (!phoneNumber.trim()) {
+      setDuplicateError('يرجى إدخال رقم الهاتف');
+      setActiveFormTab('identity');
+      return;
+    }
+
+    submittingRef.current = true;
     setSubmitting(true);
+    setDuplicateError(null);
     try {
       let finalCompanyId = companyId || null;
 
@@ -149,14 +180,16 @@ export function ContactFormModal({
         business_instagram: businessInstagram || null,
         business_facebook: businessFacebook || null,
         company_id: finalCompanyId,
-        source_platform: sourcePlatform || 'Meta Ads',
-        ad_id: adId || '-',
+        source_platform: hidePipeline && !contact ? 'Direct Traffic' : (sourcePlatform || 'Meta Ads'),
+        ad_id: hidePipeline && !contact ? '-' : (adId || '-'),
         lead_status: leadStatus,
         activity_status: activityStatus,
         meeting_status: meetingStatus,
         contact_owner_id: ownerId || null,
         meeting_date: meetingDate || null,
         follow_up_date: followUpDate || null,
+        ...(dealAmount.trim() !== '' ? { deal_amount: Number(dealAmount) || 0 } : {}),
+        ...(packageName.trim() !== '' ? { package_name: packageName.trim() } : {}),
       };
 
       let result: any = null;
@@ -181,19 +214,30 @@ export function ContactFormModal({
         alert(`خطأ: ${msg}`);
       }
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-line bg-surface p-6 shadow-2xl" dir="rtl">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-line bg-surface p-6 shadow-2xl" dir={dir}>
         <div className="flex items-center justify-between border-b border-line pb-4 mb-4">
           <div>
             <h3 className="text-base font-bold text-ink">
-              {contact ? 'تعديل بيانات العميل الشاملة' : 'إضافة عميل محتمل جديد (25 حقل)'}
+              {hidePipeline
+                ? contact
+                  ? tr('تعديل بيانات الليد', 'Edit Lead')
+                  : tr('إضافة ليد جديد', 'Add New Lead')
+                : contact
+                ? tr('تعديل بيانات العميل الشاملة', 'Edit Client Details')
+                : tr('إضافة ليد جديد', 'Add New Lead')}
             </h3>
-            <p className="text-xs text-muted">استيفاء بيانات هوية العميل والعيادة والحملة الإعلانية</p>
+            <p className="text-xs text-muted">
+              {hidePipeline
+                ? tr('استيفاء بيانات هوية العميل والمنشأة وسعر الباكيدج (اختياري)', 'Fill in lead identity, organization, and optional package price')
+                : tr('استيفاء بيانات هوية العميل والعيادة والحملة ومسار المبيعات', 'Fill in client identity, organization, campaign & sales pipeline')}
+            </p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-muted hover:bg-surface/80">
             <X className="h-5 w-5" />
@@ -218,7 +262,7 @@ export function ContactFormModal({
 
         {/* Category Selector: Individual vs Clinic Doctor vs Company Client */}
         <div className="mb-4 rounded-2xl border border-line bg-surface/50 p-2">
-          <div className="text-[11px] font-bold text-muted mb-1.5 px-1">تصنيف العميل المطلوب إضافته:</div>
+          <div className="text-[11px] font-bold text-muted mb-1.5 px-1">{tr('تصنيف العميل المطلوب إضافته:', 'Client Category:')}</div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <button
               type="button"
@@ -234,9 +278,9 @@ export function ContactFormModal({
               }`}
             >
               <span className="flex items-center gap-1">
-                <span>✨ براند شخصي</span>
+                <span>✨ {tr('براند شخصي', 'Personal Brand')}</span>
               </span>
-              <span className="text-[10px] opacity-80 font-normal">صناع محتوى، علامات تجارية شخصية، أفراد</span>
+              <span className="text-[10px] opacity-80 font-normal">{tr('صناع محتوى، علامات تجارية شخصية، أفراد', 'Creators, personal brands, individuals')}</span>
             </button>
 
             <button
@@ -253,9 +297,9 @@ export function ContactFormModal({
               }`}
             >
               <span className="flex items-center gap-1">
-                <span>🩺 عيادة / دكتور بعيادة</span>
+                <span>🩺 {tr('عيادة / دكتور بعيادة', 'Clinic / Doctor')}</span>
               </span>
-              <span className="text-[10px] opacity-80 font-normal">ربط الطبيب بعيادة ومراكز طبية</span>
+              <span className="text-[10px] opacity-80 font-normal">{tr('ربط الطبيب بعيادة ومراكز طبية', 'Link doctor to a clinic or medical center')}</span>
             </button>
 
             <button
@@ -271,9 +315,9 @@ export function ContactFormModal({
               }`}
             >
               <span className="flex items-center gap-1">
-                <span>🏢 شركة / عميل بشركة</span>
+                <span>🏢 {tr('شركة / عميل بشركة', 'Company / Business')}</span>
               </span>
-              <span className="text-[10px] opacity-80 font-normal">حسابات المنشآت والشركات التجارية</span>
+              <span className="text-[10px] opacity-80 font-normal">{tr('حسابات المنشآت والشركات التجارية', 'Commercial companies & organizations')}</span>
             </button>
           </div>
         </div>
@@ -289,7 +333,7 @@ export function ContactFormModal({
                 : 'border-transparent text-muted hover:text-ink'
             }`}
           >
-            1. هوية العميل والاتصال
+            {tr('1. هوية العميل والاتصال', '1. Client Identity & Contact')}
           </button>
           <button
             type="button"
@@ -300,19 +344,21 @@ export function ContactFormModal({
                 : 'border-transparent text-muted hover:text-ink'
             }`}
           >
-            2. بيانات المنشأة والعيادة
+            {tr('2. بيانات المنشأة والعيادة', '2. Business / Clinic & Package')}
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveFormTab('pipeline')}
-            className={`pb-2.5 px-3 border-b-2 transition ${
-              activeFormTab === 'pipeline'
-                ? 'border-amber-500 text-amber-600'
-                : 'border-transparent text-muted hover:text-ink'
-            }`}
-          >
-            3. الحملة ومسار المبيعات
-          </button>
+          {!hidePipeline && (
+            <button
+              type="button"
+              onClick={() => setActiveFormTab('pipeline')}
+              className={`pb-2.5 px-3 border-b-2 transition ${
+                activeFormTab === 'pipeline'
+                  ? 'border-amber-500 text-amber-600'
+                  : 'border-transparent text-muted hover:text-ink'
+              }`}
+            >
+              {tr('3. الحملة ومسار المبيعات', '3. Campaign & Sales Pipeline')}
+            </button>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
@@ -322,7 +368,7 @@ export function ContactFormModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-medium text-muted mb-1">
-                    Lead ID (معرف العميل) *
+                    ID العميل (موحد مع موقع السيلز) *
                   </label>
                   <div className="flex gap-2">
                     <input
@@ -433,8 +479,7 @@ export function ContactFormModal({
                   type="text"
                   value={socialProfileLink}
                   onChange={(e) => setSocialProfileLink(e.target.value)}
-                  required
-                  placeholder="https://linkedin.com/in/... أو https://facebook.com/..."
+                  placeholder="https://linkedin.com/in/... أو https://facebook.com/... (اختياري)"
                   className="w-full rounded-xl border border-line bg-surface p-2.5 text-ink"
                 />
               </div>
@@ -693,27 +738,81 @@ export function ContactFormModal({
                 </div>
               </div>
 
+              {/* Optional Package / Price Section */}
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-ink">💰 {tr('بيانات الباكيدج والسعر (اختياري)', 'Package & Price (Optional)')}</span>
+                  <span className="text-[11px] text-muted">{tr('اتركه فارغاً ليظهر: «لم يحدد أي باكيدج»', 'Leave empty to show: "No package set"')}</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-medium text-muted mb-1">{tr('اسم الباكيدج (اختياري)', 'Package Name (Optional)')}</label>
+                    <input
+                      type="text"
+                      value={packageName}
+                      onChange={(e) => setPackageName(e.target.value)}
+                      placeholder={tr('مثال: باقة إدارة سوشيال ميديا / تصوير فيديوهات', 'e.g. Social Media Management / Video Production')}
+                      className="w-full rounded-xl border border-line bg-surface p-2.5 text-ink"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-medium text-muted mb-1">{tr('سعر الباكيدج (ج.م - اختياري)', 'Package Price (EGP - Optional)')}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={dealAmount}
+                      onChange={(e) => setDealAmount(e.target.value)}
+                      placeholder={tr('اتركه فارغاً إذا لم يحدد أي باكيدج', 'Leave empty if no package selected')}
+                      className="w-full rounded-xl border border-line bg-surface p-2.5 font-mono font-bold text-amber-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="flex justify-between pt-2">
                 <button
                   type="button"
                   onClick={() => setActiveFormTab('identity')}
                   className="rounded-xl border border-line px-4 py-2 text-muted hover:bg-surface/80"
                 >
-                  ← السابق
+                  {tr('← السابق', '← Back')}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveFormTab('pipeline')}
-                  className="rounded-xl bg-amber-500 px-5 py-2 font-bold text-white shadow-sm hover:bg-amber-600"
-                >
-                  التالي: الحملة ومسار المبيعات ←
-                </button>
+                {hidePipeline ? (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="rounded-xl border border-line px-4 py-2 text-muted hover:bg-surface/80"
+                    >
+                      {tr('إلغاء', 'Cancel')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submitting}
+                      className="rounded-xl bg-amber-500 px-6 py-2 font-bold text-white shadow-md hover:bg-amber-600 disabled:opacity-50 transition"
+                    >
+                      {submitting
+                        ? tr('جاري الحفظ...', 'Saving...')
+                        : contact
+                        ? tr('حفظ التعديلات', 'Save Changes')
+                        : tr('حفظ الليد', 'Save Lead')}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setActiveFormTab('pipeline')}
+                    className="rounded-xl bg-amber-500 px-5 py-2 font-bold text-white shadow-sm hover:bg-amber-600"
+                  >
+                    {tr('التالي: الحملة ومسار المبيعات ←', 'Next: Campaign & Pipeline →')}
+                  </button>
+                )}
               </div>
             </div>
           )}
 
           {/* STEP 3: CAMPAIGN & PIPELINE */}
-          {activeFormTab === 'pipeline' && (
+          {!hidePipeline && activeFormTab === 'pipeline' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -755,7 +854,8 @@ export function ContactFormModal({
                   >
                     <option value="جديد">جديد (New)</option>
                     <option value="قيد المتابعة">قيد المتابعة (In Progress)</option>
-                    <option value="تم الفوز">تم الفوز / عميل (Won)</option>
+                    <option value="عقد">عقد (Contract ➔ Won Deals)</option>
+                    <option value="تم الفوز">تم الفوز / عميل (Won ➔ Won Deals)</option>
                     <option value="خاسر">خاسر (Lost)</option>
                   </select>
                 </div>

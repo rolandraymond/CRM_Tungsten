@@ -230,11 +230,22 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
   }
 
   try {
-    // 2. Extract Lead Info
+    // 2. Extract Lead Info (Keep exact unified ID matching SocialLens / Sales website)
     const rawFullName = payload.name || payload.full_name || payload.client_name || rawBody.customer?.name || rawBody.name || null;
     const rawPhone = payload.phone || payload.phone_number || payload.mobile || rawBody.customer?.phone || rawBody.phone || null;
     const rawCleanPhone = rawPhone ? rawPhone.replace(/[^\d+]/g, '') : '';
-    const rawLeadId = payload.lead_id || (payload.id ? `SL-${payload.id}` : null) || (rawBody.customer?.id ? `SL-${rawBody.customer.id}` : null) || payload.external_id || null;
+    const rawIdCandidate =
+      payload.lead_id ??
+      payload.client_id ??
+      payload.customer_code ??
+      payload.external_id ??
+      payload.id ??
+      rawBody.customer?.id ??
+      null;
+    const rawLeadId =
+      rawIdCandidate !== null && rawIdCandidate !== undefined && String(rawIdCandidate).trim() !== ''
+        ? String(rawIdCandidate).trim()
+        : null;
     const rawEmail = payload.email || rawBody.customer?.email || null;
     const rawSocialLink = payload.social_profile_link || payload.handle || payload.linkedin_url || payload.social_link || '-';
     const rawSource = payload.source_platform || payload.lead_source || payload.source || payload.platform || 'SocialLens';
@@ -286,16 +297,20 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
     const rawNotes = payload.notes || payload.details || payload.change_reason || payload.description || '';
     const rawPlan = payload.plan || payload.package || payload.offer || payload.plan_details || rawBody.plan || rawBody.package || rawBody.offer || rawBody.plan_details;
     const rawAvailablePlans = rawPlan?.available_plans || payload.available_plans || payload.tiers || rawBody.available_plans || rawBody.tiers;
-    const rawDealAmount = Number(
-      rawPlan?.price ||
-      rawPlan?.grandTotal ||
-      payload.deal_amount ||
-      rawBody.deal_amount ||
-      payload.amount ||
-      payload.price ||
-      rawBody.amount ||
-      rawBody.price
-    ) || (rawAvailablePlans?.growth?.price != null ? Number(rawAvailablePlans.growth.price) : 0);
+    const explicitAmountCandidate =
+      rawPlan?.price ??
+      rawPlan?.grandTotal ??
+      rawPlan?.totalPrice ??
+      payload.deal_amount ??
+      rawBody.deal_amount ??
+      payload.amount ??
+      payload.price ??
+      rawBody.amount ??
+      rawBody.price ??
+      null;
+    const parsedExplicitAmount = Number(explicitAmountCandidate);
+    const hasExplicitPackageAmount = Number.isFinite(parsedExplicitAmount) && parsedExplicitAmount > 0;
+    const rawDealAmount = hasExplicitPackageAmount ? parsedExplicitAmount : 0;
 
     // 3. Determine if Active Client (Promotion Trigger)
     const rawStatus = (payload.status || payload.lead_status || rawBody.status || rawBody.lead_status || '').toString().trim();
@@ -440,11 +455,14 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
     let existingContact: any = null;
 
     if (rawLeadId) {
+      const bareId = rawLeadId.replace(/^SL-/i, '');
+      const idCandidates = Array.from(new Set([rawLeadId, bareId, `SL-${bareId}`]));
       const { data: byLeadId } = await adminClient
         .from('crm_contacts')
         .select('*')
         .eq('workspace_id', workspaceId)
-        .eq('lead_id', rawLeadId)
+        .in('lead_id', idCandidates)
+        .limit(1)
         .maybeSingle();
       if (byLeadId) existingContact = byLeadId;
     }
@@ -505,6 +523,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
         updated_at: new Date().toISOString(),
       };
 
+      if (rawLeadId) updateData.lead_id = rawLeadId;
       if (rawFullName) updateData.full_name = rawFullName;
       if (rawPhone) updateData.phone_number = rawPhone;
       if (rawEmail) updateData.email = rawEmail;
@@ -576,10 +595,13 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
       contactId = newContact.id;
     }
 
-    // 5.5 Extract or Construct Subscribed Plan / Package Deliverables
+    // 5.5 Extract or Construct Subscribed Plan / Package Deliverables ONLY if explicitly provided
     let planData: any = null;
+    const hasExplicitPlan = Boolean(
+      rawPlan && (rawPlan.price || rawPlan.grandTotal || rawPlan.totalPrice || rawPlan.plan_name || rawPlan.name || (Array.isArray(rawPlan.services) && rawPlan.services.length > 0))
+    );
 
-    if (rawPlan || rawAvailablePlans) {
+    if (hasExplicitPlan || hasExplicitPackageAmount) {
       const isPlanApproved = isWon || rawPlan?.is_approved === true || String(rawPlan?.status || '').includes('معتمدة') || rawPlan?.status === 'approved' || rawPlan?.status === 'active';
       const planStatus = isPlanApproved ? 'مشترك بها (معتمدة)' : (rawPlan?.status || 'قيد المراجعة والتفاوض (لم تُعتمد بعد)');
       const planBadge = isPlanApproved ? 'باقة معتمدة ومفعلة' : 'عرض سعر مقترح (قيد المراجعة)';
@@ -588,16 +610,15 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
       const tierFromAvailable = rawAvailablePlans ? (rawAvailablePlans[resolvedTier] || rawAvailablePlans.growth || rawAvailablePlans.starter) : null;
 
       const effectivePrice = Number(
-        rawPlan?.price ||
-        rawPlan?.grandTotal ||
-        rawPlan?.totalPrice ||
-        tierFromAvailable?.price ||
-        rawDealAmount ||
-        (rawAvailablePlans?.growth?.price != null ? Number(rawAvailablePlans.growth.price) : 0)
-      );
+        rawPlan?.price ??
+        rawPlan?.grandTotal ??
+        rawPlan?.totalPrice ??
+        rawDealAmount ??
+        0
+      ) || 0;
 
       planData = {
-        plan_name: rawPlan?.plan_name || rawPlan?.name || tierFromAvailable?.name || (isPlanApproved ? 'الباقة الأساسية (Starter)' : 'الباقة المتقدمة (Growth)'),
+        plan_name: rawPlan?.plan_name || rawPlan?.name || tierFromAvailable?.name || (effectivePrice > 0 ? 'باقة مخصصة' : 'لم يحدد أي باكيدج'),
         plan_tier: resolvedTier,
         plan_code: rawPlan?.plan_code || rawPlan?.offer_code || rawPlan?.offerNumber || `SL-OFFER-${Date.now().toString().slice(-6)}`,
         pricing_location: rawPlan?.pricing_location || (rawPlan?.city === 'delta' || rawPlan?.city === 'mansoura' ? 'تسعير الدلتا' : 'تسعير القاهرة'),
@@ -606,14 +627,14 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
         status: planStatus,
         is_approved: isPlanApproved,
         badge: planBadge,
-        description: rawPlan?.description || tierFromAvailable?.description || 'باقة متوازنة تعالج أهم فجوات الحساب لتحقيق التوازن المثالي وأعلى عائد استثماري.',
-        strategy_goal: rawPlan?.strategy_goal || rawPlan?.expectedImprovement || tierFromAvailable?.strategy_goal || '🎯 رفع درجة الحساب الإجمالية ومضاعفة معدل الوصول والتفاعل في الفحص القادم.',
+        description: rawPlan?.description || tierFromAvailable?.description || '',
+        strategy_goal: rawPlan?.strategy_goal || rawPlan?.expectedImprovement || tierFromAvailable?.strategy_goal || '',
         diagnostics: rawPlan?.diagnostics || {
           account: rawPlan?.account_handle || (rawSocialLink !== '-' ? rawSocialLink : (rawFullName || 'الحساب')),
           platform: rawPlan?.platform || (rawSource.includes('YouTube') ? 'YouTube' : 'SocialLens'),
-          engagement_rate: rawPlan?.engagement_rate || '',
-          analysis_date: rawPlan?.analysis_date || new Date().toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' }),
-          status_label: isPlanApproved ? 'عميل نشط ومعتمد' : 'الخطة المرجحة لهذا الحساب (Best Recommended Fit)',
+          engagement_rate: rawPlan?.engagement_rate || '—',
+          analysis_date: rawPlan?.analysis_date || new Date().toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'long' }),
+          status_label: isPlanApproved ? 'عميل نشط ومعتمد' : 'قيد المتابعة',
         },
         services: (rawPlan?.services && Array.isArray(rawPlan.services) && rawPlan.services.length > 0)
           ? rawPlan.services.map((s: any, idx: number) => ({
@@ -731,7 +752,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
         `🏆 تم اعتماد العميل ونقله بنجاح من مسار العملاء المحتملين إلى الصفقات المعتمدة (Won Deals).`,
         `👤 مسؤول المتابعة والمبيعات: ${repDisplayName}`,
         `🏷️ المرحلة الحالية: [${targetDealStage}] • حالة العميل: [${targetLeadStatus}]`,
-        `💰 قيمة الصفقة/العقد: ${rawDealAmount.toLocaleString('ar-EG')} ج.م`,
+        `💰 قيمة الصفقة/العقد: ${effectiveDealAmount > 0 ? `${effectiveDealAmount.toLocaleString('en-US')} ج.م` : 'لم يحدد أي باكيدج'}`,
         rawNotes ? `📝 ملاحظات مسجلة من موقع السيلز: ${rawNotes}` : '',
         `🌐 المنصة المصدر: SocialLens Webhook (${event})`,
       ].filter(Boolean).join('\n');
@@ -863,7 +884,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
       status_code: 200,
       contact_id: contactId,
       contact_name: existingContact?.full_name || rawFullName,
-      lead_id: rawLeadId,
+      lead_id: rawLeadId || undefined,
       deal_id: dealId || undefined,
       sales_rep: repDisplayName,
       is_won: isWon,
@@ -882,7 +903,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
       data: {
         contact_id: contactId,
         deal_id: dealId,
-        lead_id: rawLeadId,
+        lead_id: rawLeadId || undefined,
         lead_status: targetLeadStatus,
         deal_stage: targetDealStage,
         is_won: isWon,

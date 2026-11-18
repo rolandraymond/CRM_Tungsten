@@ -309,7 +309,17 @@ leadsRouter.post('/', requireAuth, async (req, res) => {
     return;
   }
 
-  const parsed = createLeadSchema.safeParse(req.body);
+  const normalizedBody =
+    req.body &&
+    typeof req.body === 'object' &&
+    req.body.attribution_status === 'not_applicable' &&
+    ['paid_instagram', 'paid_facebook'].includes(req.body.source) &&
+    !req.body.ad_id &&
+    !req.body.meta_creative_id
+      ? { ...req.body, attribution_status: 'unknown' }
+      : req.body;
+
+  const parsed = createLeadSchema.safeParse(normalizedBody);
 
   if (!parsed.success) {
     res.status(400).json({

@@ -548,7 +548,7 @@ create table if not exists public.crm_contacts (
   branch_count int default 1,
   source_platform text not null,
   ad_id text not null,
-  lead_status text not null default 'جديد' check (lead_status in ('جديد', 'قيد المتابعة', 'تم الفوز', 'خاسر')),
+  lead_status text not null default 'جديد' check (lead_status in ('جديد', 'قيد المتابعة', 'عقد', 'تم الفوز', 'خاسر')),
   meeting_date timestamptz,
   follow_up_date timestamptz,
   activity_status text not null default 'معاودة الاتصال' check (activity_status in ('معاودة الاتصال', 'مهتم', 'اهتمام مستقبلي', 'غير مهتم', 'اجتماع')),

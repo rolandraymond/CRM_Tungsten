@@ -138,7 +138,7 @@ function ChatAdDetails({
                         {Number.isNaN(date.getTime())
                           ? '—'
                           : date.toLocaleString(
-                              ar ? 'ar-EG' : 'en-GB',
+                              ar ? 'ar-EG-u-nu-latn' : 'en-GB',
                               {
                                 timeZone: 'Africa/Cairo',
                                 hour12: true,
@@ -358,7 +358,7 @@ function ConversationPanel({ conversation, token, clinicId, canReply, ar, onQueu
           {attachmentLinks(message.attachments).map((item, index) => <a key={index} className="mt-2 block underline" href={item.url} target="_blank" rel="noreferrer">
             {ar ? 'افتح المرفق' : 'Open attachment'} ({item.type})</a>)}
           {!message.text && attachmentLinks(message.attachments).length === 0 && <p>{ar ? 'مرفق أو نوع رسالة مش مدعوم في العرض.' : 'Attachment or unsupported message type.'}</p>}
-          <p className="mt-2 text-xs text-muted">{new Date(message.occurred_at).toLocaleString(ar ? 'ar-EG' : 'en-GB', { timeZone: 'Africa/Cairo' })} · {labels[message.status] ?? message.status}</p>
+          <p className="mt-2 text-xs text-muted">{new Date(message.occurred_at).toLocaleString(ar ? 'ar-EG-u-nu-latn' : 'en-GB', { timeZone: 'Africa/Cairo' })} · {labels[message.status] ?? message.status}</p>
           {message.failure_code && <p className="mt-1 text-xs text-danger" dir="ltr">{message.failure_code}</p>}
         </article>)}
     </div>

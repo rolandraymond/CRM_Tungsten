@@ -87,7 +87,7 @@ export default function BookingCalendarPage({ onSelect }: BookingCalendarProps =
   const { i18n } = useTranslation();
   const ar = (i18n.resolvedLanguage ?? i18n.language).startsWith('ar');
 
-  const locale = ar ? 'ar-EG' : 'en-GB';
+  const locale = ar ? 'ar-EG-u-nu-latn' : 'en-GB';
   const { token, clinic, isAdmin } = useOutletContext<WorkspaceContext>();
 
   const [month, setMonth] = useState(() => cairoToday().slice(0, 7));

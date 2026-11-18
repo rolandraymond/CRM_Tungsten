@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useCrm } from '../CrmContext';
+import { useCrmLang } from '../useCrmLang';
 import type { CrmActivity, CrmContact, MeetingStatus } from '../types';
 import {
   Calendar,
@@ -11,6 +12,7 @@ import {
 
 export default function CrmMeetingsPage() {
   const { activeWorkspace, apiFetch } = useCrm();
+  const { dir, tr, fmtDate } = useCrmLang();
 
   const [meetings, setMeetings] = useState<CrmActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,7 +83,7 @@ export default function CrmMeetingsPage() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" dir={dir}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-4 shadow-sm">
         <div className="flex items-center gap-3">
@@ -90,11 +92,11 @@ export default function CrmMeetingsPage() {
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-xl border border-line bg-surface/50 px-3 py-2 text-xs font-medium text-ink outline-none"
           >
-            <option value="all">جميع حالات الاجتماعات</option>
-            <option value="محجوز">محجوز</option>
-            <option value="حضر">حضر</option>
-            <option value="لم يحضر">لم يحضر</option>
-            <option value="ملغي">ملغي</option>
+            <option value="all">{tr('جميع حالات الاجتماعات', 'All Meeting Statuses')}</option>
+            <option value="محجوز">{tr('محجوز', 'Booked')}</option>
+            <option value="حضر">{tr('حضر', 'Showed Up')}</option>
+            <option value="لم يحضر">{tr('لم يحضر', 'No Show')}</option>
+            <option value="ملغي">{tr('ملغي', 'Cancelled')}</option>
           </select>
         </div>
 
@@ -103,16 +105,16 @@ export default function CrmMeetingsPage() {
           className="flex items-center gap-2 rounded-xl bg-amber-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-amber-600"
         >
           <Plus className="h-4 w-4" />
-          <span>جدولة اجتماع جديد</span>
+          <span>{tr('جدولة اجتماع جديد', 'Schedule New Meeting')}</span>
         </button>
       </div>
 
       {/* Meetings List */}
       <div className="rounded-2xl border border-line bg-surface shadow-sm">
         {loading ? (
-          <div className="py-16 text-center text-xs text-muted">جاري تحميل الاجتماعات...</div>
+          <div className="py-16 text-center text-xs text-muted">{tr('جاري تحميل الاجتماعات...', 'Loading meetings...')}</div>
         ) : meetings.length === 0 ? (
-          <div className="py-16 text-center text-xs text-muted">لا توجد اجتماعات مسجلة في هذا القسم</div>
+          <div className="py-16 text-center text-xs text-muted">{tr('لا توجد اجتماعات مسجلة في هذا القسم', 'No meetings scheduled yet')}</div>
         ) : (
           <div className="divide-y divide-line/60">
             {meetings.map((m) => (
@@ -145,12 +147,8 @@ export default function CrmMeetingsPage() {
                         const dt = m.due_date || m.start_date || m.created_at;
                         if (!dt) return null;
                         const dObj = new Date(dt);
-                        const dateStr = dObj.toLocaleDateString('ar-EG', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        });
-                        const timeStr = dObj.toLocaleTimeString('ar-EG', {
+                        const dateStr = fmtDate(dt);
+                        const timeStr = dObj.toLocaleTimeString('en-US', {
                           hour: '2-digit',
                           minute: '2-digit',
                         });
@@ -171,7 +169,7 @@ export default function CrmMeetingsPage() {
 
                 {/* Status Selector */}
                 <div className="flex items-center gap-2">
-                  <span className="text-muted text-[11px]">حالة الحضور:</span>
+                  <span className="text-muted text-[11px]">{tr('حالة الحضور:', 'Attendance:')}</span>
                   <select
                     value={m.meeting_status || 'محجوز'}
                     onChange={(e) => handleUpdateStatus(m.id, e.target.value as MeetingStatus)}
