@@ -1,4 +1,4 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { NativeDatabaseClient } from './database.js';
 import { ensureClinicSynced } from './clinic-sync.js';
 
 export type EntityClassification = {
@@ -102,7 +102,7 @@ export function classifyContactEntityType(contact: {
  * and linked to the contact and associated deals.
  */
 export async function ensureCompanyForConvertedClient(
-  client: SupabaseClient,
+  client: NativeDatabaseClient,
   contactId: string,
   workspaceId: string,
   matchedUserId?: string | null
@@ -162,7 +162,8 @@ export async function ensureCompanyForConvertedClient(
     let targetCompanyId = existingCompByName?.id;
 
     if (!targetCompanyId) {
-      const effectiveOwner = contact.contact_owner_id || contact.created_by || matchedUserId || 'b12ebe74-0136-4a2b-a1ad-8327826b7d61';
+      const effectiveOwner = contact.contact_owner_id || contact.created_by || matchedUserId;
+      if (!effectiveOwner) throw new Error('Contact owner is required to create a company');
       const insertData = {
         workspace_id: workspaceId,
         company_name: candidateName,

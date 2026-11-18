@@ -83,7 +83,7 @@ export default function CrmContactDetailPage() {
   // Quick Deal State
   const [showNewDealModal, setShowNewDealModal] = useState(false);
   const [newDealName, setNewDealName] = useState('');
-  const [newDealAmount, setNewDealAmount] = useState('25000');
+  const [newDealAmount, setNewDealAmount] = useState('0');
   const [newDealStage, setNewDealStage] = useState<DealStage>('مكالمة');
   const [creatingDeal, setCreatingDeal] = useState(false);
 
@@ -170,7 +170,7 @@ export default function CrmContactDetailPage() {
         method: 'POST',
         body: JSON.stringify({
           deal_name: newDealName,
-          deal_amount: Number(newDealAmount) || 25000,
+          deal_amount: Number(newDealAmount) || 0,
           deal_stage: newDealStage,
           currency: 'EGP',
           company_id: contact.company_id || null,
@@ -191,11 +191,8 @@ export default function CrmContactDetailPage() {
     if (!activeWorkspace || !contact) return;
     setApprovingPlan(true);
     try {
-      const planToApprove = planOverride || activePlan || {
-        plan_name: 'الباقة الأساسية (Starter)',
-        plan_tier: 'starter',
-        price: contact.deals?.[0]?.deal_amount || 16450,
-      };
+      const planToApprove = planOverride || activePlan;
+      if (!planToApprove) throw new Error('لا توجد خطة مسجلة لاعتمادها');
 
       await apiFetch(
         `/api/crm/workspaces/${activeWorkspace.id}/contacts/${contact.id}/plan`,
@@ -457,56 +454,7 @@ export default function CrmContactDetailPage() {
   const filteredEvents = baseFilteredEvents;
 
   // Active Subscribed Plan / SocialLens Package Deliverables
-  const clientDeal = contact?.deals?.[0];
-  const linkedDealAmount = clientDeal?.deal_amount;
-  const isClientWon = contact && (contact.lead_status === 'تم الفوز' || contact.lead_status === 'عميل' || contact.deals?.some((d) => d.deal_stage === 'عميل'));
-
-  const activePlan = contact?.plan_details || (
-    contact
-      ? {
-          plan_name: isClientWon ? 'الباقة الأساسية (Starter)' : (clientDeal?.deal_name || 'باقة مخصصة (تحليل الحساب)'),
-          plan_tier: 'starter' as const,
-          plan_code: `SL-OFFER-${contact.lead_id || Date.now().toString().slice(-4)}`,
-          pricing_location: 'تسعير القاهرة',
-          price: linkedDealAmount || 16450,
-          billing_cycle: 'شهرياً',
-          status: isClientWon ? 'مشترك بها (معتمدة)' : 'قيد المراجعة والتفاوض (لم تُعتمد بعد)',
-          badge: isClientWon ? 'باقة معتمدة ومفعلة' : 'عرض سعر مقترح (قيد المراجعة)',
-          is_approved: Boolean(isClientWon),
-          description: 'باقة تسويقية موجهة خصيصاً لاستهداف أضعف نقطة في حسابك لضمان تحقيق أفضل عائد بأقل استثمار مالي.',
-          strategy_goal: '🎯 إيقاف هبوط الحساب ورفع مؤشر معدل التفاعل وحفظ المحتوى (Engagement & Saves).',
-          diagnostics: {
-            account: contact.social_profile_link && contact.social_profile_link !== '-'
-              ? contact.social_profile_link
-              : (contact.full_name ? `@${contact.full_name.replace(/\s+/g, '_')}` : 'حساب العميل'),
-            platform: contact.source_platform?.toLowerCase().includes('tiktok')
-              ? 'TikTok'
-              : (contact.source_platform?.toLowerCase().includes('youtube') ? 'YouTube' : 'Instagram'),
-            engagement_rate: '0.5%',
-            analysis_date: new Date(contact.created_at).toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' }),
-            status_label: isClientWon ? 'عميل نشط ومعتمد' : 'أداء متوسط بإمكانات واعدة',
-          },
-          services: [
-            {
-              id: '1',
-              title: 'منشورات كاروسيل تفاعلية',
-              quantity: 3,
-              unit_price: 3150,
-              total_price: 9450,
-              description: '3 منشورات كاروسيل تعليمية مكثفة لرفع معدل حفظ المحتوى (Saves)',
-            },
-            {
-              id: '2',
-              title: 'إدارة صفحة تيك توك',
-              quantity: 1,
-              unit_price: 7000,
-              total_price: 7000,
-              description: 'إدارة متخصصة لصفحة تيك توك مع ضبط الـ Hooks ومواعيد النشر.',
-            },
-          ],
-        }
-      : null
-  );
+  const activePlan = contact?.plan_details ?? null;
 
   return (
     <div className="space-y-4" dir="rtl">
@@ -1400,7 +1348,7 @@ export default function CrmContactDetailPage() {
                   className="mt-2 inline-flex items-center gap-1 text-xs font-bold text-amber-600 hover:underline"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  <span>تخصيص باقة للعميل (25,000 ج.م)</span>
+                  <span>إضافة باقة أو صفقة للعميل</span>
                 </button>
               </div>
             )}
@@ -1769,235 +1717,23 @@ export default function CrmContactDetailPage() {
             </p>
 
             {(() => {
-              const avail = activePlan?.available_plans;
-              const starterPlan = avail?.starter;
-              const growthPlan = avail?.growth;
-              const premiumPlan = avail?.premium;
-
-              const sPrice = starterPlan?.price ?? 16450;
-              const gPrice = growthPlan?.price ?? 37550;
-              const pPrice = premiumPlan?.price ?? 56250;
-
-              const sName = starterPlan?.name || 'الباقة الأساسية (Starter)';
-              const gName = growthPlan?.name || 'باقة النمو والمضاعفة (Growth)';
-              const pName = premiumPlan?.name || 'الباقة الاحترافية الشاملة (Premium)';
-
-              const sServices = (starterPlan?.services && starterPlan.services.length > 0)
-                ? starterPlan.services
-                : [
-                    { id: '1', title: 'منشورات كاروسيل تفاعلية', quantity: 3, unit_price: 3150, total_price: 9450, description: '3 منشورات كاروسيل تعليمية مكثفة' },
-                    { id: '2', title: 'إدارة صفحة تيك توك', quantity: 1, unit_price: 7000, total_price: 7000, description: 'إدارة متخصصة لصفحة تيك توك' },
-                  ];
-
-              const gServices = (growthPlan?.services && growthPlan.services.length > 0)
-                ? growthPlan.services
-                : [
-                    { id: '1', title: 'منشورات كاروسيل تفاعلية', quantity: 5, unit_price: 3150, total_price: 15750, description: '5 منشورات كاروسيل استراتيجية' },
-                    { id: '2', title: 'إدارة صفحة تيك توك', quantity: 1, unit_price: 7000, total_price: 7000, description: 'إدارة شاملة لصفحة تيك توك' },
-                    { id: '3', title: 'حالة فيديو (Video Case)', quantity: 4, unit_price: 2500, total_price: 10000, description: '4 حالات فيديو احترافية' },
-                    { id: '4', title: 'حالة تصميم (Design Case)', quantity: 6, unit_price: 800, total_price: 4800, description: '6 حالات تصميم نوعية' },
-                  ];
-
-              const pServices = (premiumPlan?.services && premiumPlan.services.length > 0)
-                ? premiumPlan.services
-                : [
-                    { id: '1', title: 'منشورات كاروسيل تفاعلية', quantity: 7, unit_price: 3150, total_price: 22050, description: '7 منشورات كاروسيل متقدمة' },
-                    { id: '2', title: 'إدارة صفحة تيك توك', quantity: 1, unit_price: 7000, total_price: 7000, description: 'استراتيجية هيمنة كاملة لتيك توك' },
-                    { id: '3', title: 'حالة فيديو (Video Case)', quantity: 6, unit_price: 2500, total_price: 15000, description: '6 حالات فيديو ريلز استراتيجية' },
-                    { id: '4', title: 'حالة تصميم (Design Case)', quantity: 8, unit_price: 800, total_price: 6400, description: '8 حالات تصميم مكثفة' },
-                    { id: '5', title: 'ستوري تفاعلية (30 ستوري)', quantity: 1, unit_price: 3000, total_price: 3000, description: 'باقة ستوري تفاعلية متقدمة' },
-                    { id: '6', title: 'حالة محتوى (Content Case)', quantity: 8, unit_price: 350, total_price: 2800, description: 'صياغة 8 نصوص وسيناريوهات متقدمة' },
-                  ];
-
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Plan 1: Starter */}
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4.5 flex flex-col justify-between space-y-4 hover:border-amber-400/50 transition">
+              const catalog = activePlan?.available_plans;
+              const offers = Object.entries(catalog ?? {}).filter(([, offer]) => offer && Number.isFinite(Number(offer.price)));
+              if (!offers.length) return <p className="rounded-xl border border-white/10 p-5 text-sm text-slate-300">لا توجد باقات مسجلة لهذا العميل. أضف صفقة بقيمها الفعلية، أو استقبل تفاصيل الباقة من التكامل.</p>;
+              return <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {offers.map(([tier, offer]) => {
+                  const plan = { ...offer, plan_name: offer.name, plan_tier: tier, price: Number(offer.price), available_plans: catalog };
+                  return <div key={tier} className="rounded-2xl border border-white/10 p-4 space-y-4">
+                    <h4 className="font-bold">{offer.name}</h4>
+                    <p>{Number(offer.price).toLocaleString()} ج.م</p>
+                    {offer.description && <p className="text-xs text-slate-300">{offer.description}</p>}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-amber-400">البداية السريعة</span>
-                        <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded">Starter</span>
-                      </div>
-                      <h4 className="text-sm font-black text-white">{sName}</h4>
-                      <div className="text-xl font-black text-white tracking-tight">
-                        {sPrice.toLocaleString()} <span className="text-xs font-bold text-amber-400">ج.م / شهر</span>
-                      </div>
-                      <p className="text-[11px] text-slate-300 leading-relaxed">
-                        {starterPlan?.description || 'إيقاف تراجع الحساب ومعالجة معدل التفاعل والحفظ بأقل استثمار مالي.'}
-                      </p>
-                      <div className="border-t border-white/10 pt-2 space-y-1.5 text-[11px] text-slate-300">
-                        {sServices.slice(0, 3).map((it, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                            <span>{it.title} ({it.quantity}×)</span>
-                          </div>
-                        ))}
-                      </div>
+                      <button type="button" disabled={approvingPlan} onClick={() => void handleSavePlan(plan, true)} className="w-full rounded-xl bg-emerald-600 p-2 text-sm">اعتماد وتفعيل</button>
+                      <button type="button" disabled={approvingPlan} onClick={() => void handleSavePlan(plan, false)} className="w-full rounded-xl bg-white/10 p-2 text-sm">حفظ كعرض سعر</button>
                     </div>
-
-                    <div className="space-y-2 pt-2 border-t border-white/10">
-                      <button
-                        type="button"
-                        disabled={approvingPlan}
-                        onClick={() => void handleSavePlan({
-                          plan_name: sName,
-                          plan_tier: 'starter',
-                          plan_code: `SL-STARTER-${Date.now().toString().slice(-4)}`,
-                          pricing_location: activePlan?.pricing_location || 'تسعير القاهرة',
-                          price: sPrice,
-                          services: sServices,
-                          available_plans: avail,
-                        }, true)}
-                        className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer shadow-sm"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>اعتماد وتفعيل الآن ✅</span>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={approvingPlan}
-                        onClick={() => void handleSavePlan({
-                          plan_name: sName,
-                          plan_tier: 'starter',
-                          plan_code: `SL-STARTER-${Date.now().toString().slice(-4)}`,
-                          pricing_location: activePlan?.pricing_location || 'تسعير القاهرة',
-                          price: sPrice,
-                          services: sServices,
-                          available_plans: avail,
-                        }, false)}
-                        className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <span>حفظ كعرض سعر 📋</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Plan 2: Growth (Recommended) */}
-                  <div className="rounded-2xl border-2 border-amber-500/80 bg-white/[0.05] p-4.5 flex flex-col justify-between space-y-4 shadow-lg shadow-amber-500/5 relative">
-                    <span className="absolute -top-3 right-4 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-black shadow-xs">
-                      الأكثر طلباً ⭐
-                    </span>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-amber-400">النمو والتوسع</span>
-                        <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded">Growth</span>
-                      </div>
-                      <h4 className="text-sm font-black text-white">{gName}</h4>
-                      <div className="text-xl font-black text-white tracking-tight">
-                        {gPrice.toLocaleString()} <span className="text-xs font-bold text-amber-400">ج.م / شهر</span>
-                      </div>
-                      <p className="text-[11px] text-slate-300 leading-relaxed">
-                        {growthPlan?.description || 'مضاعفة الوصول والتفاعل مع المحتوى وبناء حضور رقمي قوي ومستمر.'}
-                      </p>
-                      <div className="border-t border-white/10 pt-2 space-y-1.5 text-[11px] text-slate-300">
-                        {gServices.slice(0, 3).map((it, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                            <span>{it.title} ({it.quantity}×)</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 pt-2 border-t border-white/10">
-                      <button
-                        type="button"
-                        disabled={approvingPlan}
-                        onClick={() => void handleSavePlan({
-                          plan_name: gName,
-                          plan_tier: 'growth',
-                          plan_code: `SL-GROWTH-${Date.now().toString().slice(-4)}`,
-                          pricing_location: activePlan?.pricing_location || 'تسعير القاهرة',
-                          price: gPrice,
-                          services: gServices,
-                          available_plans: avail,
-                        }, true)}
-                        className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-black text-xs font-black transition flex items-center justify-center gap-1 cursor-pointer shadow-md"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>اعتماد وتفعيل الآن ✅</span>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={approvingPlan}
-                        onClick={() => void handleSavePlan({
-                          plan_name: gName,
-                          plan_tier: 'growth',
-                          plan_code: `SL-GROWTH-${Date.now().toString().slice(-4)}`,
-                          pricing_location: activePlan?.pricing_location || 'تسعير القاهرة',
-                          price: gPrice,
-                          services: gServices,
-                          available_plans: avail,
-                        }, false)}
-                        className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <span>حفظ كعرض سعر 📋</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Plan 3: Premium */}
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4.5 flex flex-col justify-between space-y-4 hover:border-amber-400/50 transition">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-amber-400">السيطرة الكاملة</span>
-                        <span className="text-[10px] font-mono text-slate-400 bg-white/5 px-2 py-0.5 rounded">Premium</span>
-                      </div>
-                      <h4 className="text-sm font-black text-white">{pName}</h4>
-                      <div className="text-xl font-black text-white tracking-tight">
-                        {pPrice.toLocaleString()} <span className="text-xs font-bold text-amber-400">ج.م / شهر</span>
-                      </div>
-                      <p className="text-[11px] text-slate-300 leading-relaxed">
-                        {premiumPlan?.description || 'منظومة تسويق رقمي متكاملة تشمل تصوير ريلز وحملات إعلانية ممولة.'}
-                      </p>
-                      <div className="border-t border-white/10 pt-2 space-y-1.5 text-[11px] text-slate-300">
-                        {pServices.slice(0, 3).map((it, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-                            <span>{it.title} ({it.quantity}×)</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 pt-2 border-t border-white/10">
-                      <button
-                        type="button"
-                        disabled={approvingPlan}
-                        onClick={() => void handleSavePlan({
-                          plan_name: pName,
-                          plan_tier: 'premium',
-                          plan_code: `SL-PREMIUM-${Date.now().toString().slice(-4)}`,
-                          pricing_location: activePlan?.pricing_location || 'تسعير القاهرة',
-                          price: pPrice,
-                          services: pServices,
-                          available_plans: avail,
-                        }, true)}
-                        className="w-full py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer shadow-sm"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                        <span>اعتماد وتفعيل الآن ✅</span>
-                      </button>
-                      <button
-                        type="button"
-                        disabled={approvingPlan}
-                        onClick={() => void handleSavePlan({
-                          plan_name: pName,
-                          plan_tier: 'premium',
-                          plan_code: `SL-PREMIUM-${Date.now().toString().slice(-4)}`,
-                          pricing_location: activePlan?.pricing_location || 'تسعير القاهرة',
-                          price: pPrice,
-                          services: pServices,
-                          available_plans: avail,
-                        }, false)}
-                        className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 text-xs font-bold transition flex items-center justify-center gap-1 cursor-pointer"
-                      >
-                        <span>حفظ كعرض سعر 📋</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
+                  </div>;
+                })}
+              </div>;
             })()}
           </div>
         </div>

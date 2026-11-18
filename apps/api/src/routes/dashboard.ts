@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient } from '../lib/database.js';
 import { DateTime } from 'luxon';
 
 export const dashboardRouter = Router();
@@ -20,7 +20,7 @@ dashboardRouter.get('/', requireAuth, async (req, res) => {
     return;
   }
 
-  const db = createUserSupabaseClient(auth.accessToken);
+  const db = createUserDatabaseClient(auth.accessToken);
 
   try {
     // A user-scoped client keeps the existing clinic RLS rules in force.

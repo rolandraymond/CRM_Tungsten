@@ -1,3 +1,4 @@
+import { authRouter } from './routes/auth.js';
 import express from 'express';
 import { requireAuth } from './middleware/require-auth.js';
 import { clinicsRouter } from './routes/clinics.js';
@@ -24,6 +25,7 @@ export const app = express();
 const apiRouter = express.Router();
 
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 
 // Enable CORS for all API & Webhook endpoints
 app.use((req, res, next) => {
@@ -39,7 +41,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// SocialLens Webhook Receiver (Public, no auth requirement)
+// External SocialLens posts require the configured webhook secret.
 app.use(
   '/webhook/sociallens',
   express.json({ limit: '1mb' }),
@@ -77,6 +79,7 @@ app.get('/health', (_req, res) => {
   });
 });
 
+apiRouter.use('/auth', authRouter);
 apiRouter.use('/clinics', clinicsRouter);
 apiRouter.use('/booking-setup', bookingSetupRouter);
 apiRouter.use(
@@ -95,7 +98,7 @@ apiRouter.use('/dashboard', dashboardRouter);
 apiRouter.use('/admin', adminRouter);
 apiRouter.use('/chats', chatsRouter);
 apiRouter.use('/internal/clients', internalClientsRouter);
-apiRouter.use('/crm/webhooks/sociallens', express.json({ limit: '1mb' }), sociallensWebhookRouter);
+apiRouter.use('/crm/webhooks/sociallens', requireAuth, express.json({ limit: '1mb' }), sociallensWebhookRouter);
 apiRouter.use('/crm', crmRouter);
 
 apiRouter.get('/auth/me', requireAuth, (_req, res) => {

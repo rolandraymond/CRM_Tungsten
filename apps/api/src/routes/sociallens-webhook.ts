@@ -1,5 +1,8 @@
 import { Router, type Request, type Response } from 'express';
-import { getSupabaseAdmin } from '../lib/supabase.js';
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { requireAuth } from '../middleware/require-auth.js';
+import { requestContext } from '../lib/request-context.js';
+import { createUserDatabaseClient, getDatabaseAdmin } from '../lib/database.js';
 import { ensureCompanyForConvertedClient } from '../lib/company-sync.js';
 
 export const sociallensWebhookRouter = Router();
@@ -127,13 +130,24 @@ function normalizeDealStage(val?: string, isWon?: boolean): (typeof VALID_DEAL_S
 // ----------------------------------------------------------------------------
 // GET /logs - Retrieve recent webhook logs for workspace
 // ----------------------------------------------------------------------------
-sociallensWebhookRouter.get('/logs', async (req: Request, res: Response) => {
-  const { workspace_id } = req.query;
-  if (!workspace_id || typeof workspace_id !== 'string') {
-    return res.json({ logs: webhookLogsCache });
+async function canManageWorkspace(res: Response, workspaceId: string): Promise<boolean> {
+  const auth = res.locals.auth;
+  if (!auth) return false;
+  const client = createUserDatabaseClient(auth.accessToken);
+  const [{ data: member }, { data: status }, { data: workspace }] = await Promise.all([
+    client.from('crm_workspace_members').select('role').eq('workspace_id', workspaceId).eq('user_id', auth.userId).eq('is_active', true).maybeSingle(),
+    client.rpc('crm_internal_user_status'),
+    client.from('crm_workspaces').select('workspace_type').eq('id', workspaceId).maybeSingle(),
+  ]);
+  return Boolean(workspace && (['owner','company_owner','company_manager'].includes(member?.role) || (status?.is_admin && workspace.workspace_type === 'tungsten_internal')));
+}
+
+sociallensWebhookRouter.get('/logs', requireAuth, async (req: Request, res: Response) => {
+  const workspace = req.query.workspace_id;
+  if (typeof workspace !== 'string' || !await canManageWorkspace(res, workspace)) {
+    return res.status(403).json({ error: 'Workspace owner access required' });
   }
-  const filtered = webhookLogsCache.filter((l) => l.workspace_id === workspace_id);
-  return res.json({ logs: filtered });
+  return res.json({ logs: webhookLogsCache.filter(entry => entry.workspace_id === workspace) });
 });
 
 // ----------------------------------------------------------------------------
@@ -159,7 +173,14 @@ sociallensWebhookRouter.get('/', async (_req: Request, res: Response) => {
 // POST / - Main Webhook Receiver from SocialLens
 // ----------------------------------------------------------------------------
 sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
-  const adminClient = getSupabaseAdmin();
+  if (!res.locals.auth) {
+    const expected = process.env.SOCIALLENS_WEBHOOK_SECRET;
+    if (!expected) return res.status(503).json({ error: 'SocialLens webhook is not configured' });
+    const received = req.get('x-webhook-secret') ?? '';
+    const digest = (value: string) => createHash('sha256').update(value).digest();
+    if (!timingSafeEqual(digest(received), digest(expected))) return res.status(403).json({ error: 'Invalid webhook secret' });
+  }
+  let adminClient = getDatabaseAdmin();
   const rawBody = req.body || {};
   const query = req.query || {};
   const headers = req.headers || {};
@@ -202,6 +223,10 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
     };
     addWebhookLog(errorEntry);
     return res.status(400).json({ error: 'Active CRM Workspace not found' });
+  }
+
+  if (res.locals.auth && !await canManageWorkspace(res, workspaceId)) {
+    return res.status(403).json({ error: 'Workspace owner access required' });
   }
 
   try {
@@ -270,7 +295,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
       payload.price ||
       rawBody.amount ||
       rawBody.price
-    ) || (rawAvailablePlans?.growth?.price ? Number(rawAvailablePlans.growth.price) : 10000);
+    ) || (rawAvailablePlans?.growth?.price != null ? Number(rawAvailablePlans.growth.price) : 0);
 
     // 3. Determine if Active Client (Promotion Trigger)
     const rawStatus = (payload.status || payload.lead_status || rawBody.status || rawBody.lead_status || '').toString().trim();
@@ -404,16 +429,12 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
     }
 
     if (!matchedUserId) {
-      // Emergency fallback to any user in auth.users
-      const { data: anyUsers } = await adminClient.auth.admin.listUsers();
-      if (anyUsers?.users?.[0]) {
-        matchedUserId = anyUsers.users[0].id;
-      }
-    }
-
-    if (!matchedUserId) {
       throw new Error('No valid CRM user found to attribute contact/deal to.');
     }
+    const webhookActor = requestContext.getStore()?.user ?? (await adminClient.auth.admin.listUsers()).data.users.find(user => user.id === matchedUserId);
+    if (!webhookActor) throw new Error('No active workspace actor is available');
+    adminClient = getDatabaseAdmin(webhookActor);
+    const actorId = webhookActor.id;
 
     // 5. Look up existing Contact by lead_id or phone or email
     let existingContact: any = null;
@@ -540,7 +561,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
         meeting_date: payload.meeting_date || null,
         follow_up_date: payload.follow_up_date || null,
         contact_owner_id: matchedUserId,
-        created_by: matchedUserId,
+        created_by: actorId,
       };
 
       const { data: newContact, error: insErr } = await adminClient
@@ -558,7 +579,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
     // 5.5 Extract or Construct Subscribed Plan / Package Deliverables
     let planData: any = null;
 
-    if (rawPlan || isWon || rawAvailablePlans) {
+    if (rawPlan || rawAvailablePlans) {
       const isPlanApproved = isWon || rawPlan?.is_approved === true || String(rawPlan?.status || '').includes('معتمدة') || rawPlan?.status === 'approved' || rawPlan?.status === 'active';
       const planStatus = isPlanApproved ? 'مشترك بها (معتمدة)' : (rawPlan?.status || 'قيد المراجعة والتفاوض (لم تُعتمد بعد)');
       const planBadge = isPlanApproved ? 'باقة معتمدة ومفعلة' : 'عرض سعر مقترح (قيد المراجعة)';
@@ -572,7 +593,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
         rawPlan?.totalPrice ||
         tierFromAvailable?.price ||
         rawDealAmount ||
-        (rawAvailablePlans?.growth?.price ? Number(rawAvailablePlans.growth.price) : 10000)
+        (rawAvailablePlans?.growth?.price != null ? Number(rawAvailablePlans.growth.price) : 0)
       );
 
       planData = {
@@ -590,7 +611,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
         diagnostics: rawPlan?.diagnostics || {
           account: rawPlan?.account_handle || (rawSocialLink !== '-' ? rawSocialLink : (rawFullName || 'الحساب')),
           platform: rawPlan?.platform || (rawSource.includes('YouTube') ? 'YouTube' : 'SocialLens'),
-          engagement_rate: rawPlan?.engagement_rate || '0.5%',
+          engagement_rate: rawPlan?.engagement_rate || '',
           analysis_date: rawPlan?.analysis_date || new Date().toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' }),
           status_label: isPlanApproved ? 'عميل نشط ومعتمد' : 'الخطة المرجحة لهذا الحساب (Best Recommended Fit)',
         },
@@ -605,24 +626,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
             }))
           : (tierFromAvailable?.services && Array.isArray(tierFromAvailable.services) && tierFromAvailable.services.length > 0)
           ? tierFromAvailable.services
-          : [
-              {
-                id: '1',
-                title: 'منشورات كاروسيل تفاعلية',
-                quantity: 3,
-                unit_price: 3150,
-                total_price: 9450,
-                description: '3 منشورات كاروسيل تعليمية مكثفة لرفع معدل حفظ المحتوى (Saves) وزيادة وقت التصفح',
-              },
-              {
-                id: '2',
-                title: 'إدارة صفحة تيك توك',
-                quantity: 1,
-                unit_price: 7000,
-                total_price: 7000,
-                description: 'إدارة متخصصة لصفحة تيك توك مع ضبط الـ Hooks ومواعيد النشر لدفع الخوارزميات.',
-              },
-            ],
+          : [],
         available_plans: rawAvailablePlans || undefined,
       };
     }
@@ -695,7 +699,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
           deal_amount: effectiveDealAmount,
           currency: 'EGP',
           deal_owner_id: matchedUserId,
-          created_by: matchedUserId,
+          created_by: actorId,
           description: dealDesc,
         })
         .select('id')
@@ -762,7 +766,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
       completion_status: isWon ? 'مكتمل' : 'قيد الانتظار',
       due_date: isWon ? null : (payload.follow_up_date || new Date().toISOString()),
       performed_at: new Date().toISOString(),
-      created_by: matchedUserId,
+      created_by: actorId,
     });
 
     // 7.1 Record Subscribed Plan Deliverables Activity (SocialLens Offer)
@@ -788,12 +792,12 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
           `💰 القيمة / السعر: ${Number(planData.price).toLocaleString('ar-EG')} ج.م / ${planData.billing_cycle}`,
           `🎯 الهدف الاستراتيجي للخطة: ${planData.strategy_goal}`,
           `📋 المخرجات والخدمات المتضمنة (${planData.services.length} خدمات):\n${servicesListText}`,
-          `🔍 تشخيص الحساب: ${planData.diagnostics?.platform || 'YouTube'} ${planData.diagnostics?.account || ''} (معدل التفاعل: ${planData.diagnostics?.engagement_rate || '0.5%'})`,
+          `🔍 تشخيص الحساب: ${planData.diagnostics?.platform || 'YouTube'} ${planData.diagnostics?.account || ''} (معدل التفاعل: ${planData.diagnostics?.engagement_rate || 'غير متاح'})`,
         ].join('\n\n'),
         assigned_user_id: matchedUserId,
         completion_status: 'مكتمل',
         performed_at: new Date().toISOString(),
-        created_by: matchedUserId,
+        created_by: actorId,
       });
     }
 
@@ -820,7 +824,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
           start_date: hType === 'اجتماع' ? (h.start_date || hTime) : null,
           meeting_status: hType === 'اجتماع' ? normalizeMeetingStatus(h.meeting_status || 'حضر') : null,
           performed_at: hTime,
-          created_by: matchedUserId,
+          created_by: actorId,
         });
       }
     }
@@ -846,7 +850,7 @@ sociallensWebhookRouter.post('/', async (req: Request, res: Response) => {
         event,
         is_won: isWon,
       },
-      performed_by: matchedUserId,
+      performed_by: actorId,
     });
 
     // 9. Save in In-Memory Webhook Logs cache

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient, getSupabaseAdmin } from '../lib/supabase.js';
+import { createUserDatabaseClient, getDatabaseAdmin } from '../lib/database.js';
 import { adminTeamRouter } from './admin-team.js';
 import { adminAdsRouter } from './admin-ads.js';
 import { adminEntitySetupRouter } from './admin-entity-setup.js';
@@ -65,7 +65,7 @@ adminRouter.use(requireAuth);
 adminRouter.get('/status', async (_req, res) => {
   try {
     const auth = res.locals.auth!;
-    const client = createUserSupabaseClient(auth.accessToken);
+    const client = createUserDatabaseClient(auth.accessToken);
     const { data } = await client.rpc('crm_internal_user_status');
 
     let isAdmin = Boolean(data?.is_admin || data?.is_owner);
@@ -83,7 +83,7 @@ adminRouter.get('/status', async (_req, res) => {
     let clinicRole: string | null = null;
 
     if (!isAdmin && !isOwner && !isManager && !isSales) {
-      const adminClient = getSupabaseAdmin();
+      const adminClient = getDatabaseAdmin();
       const { data: memberships } = await adminClient
         .from('crm_workspace_members')
         .select(`
@@ -182,12 +182,12 @@ adminRouter.use(async (_req, res, next) => {
       return;
     }
 
-    const { data, error } = await createUserSupabaseClient(
+    const { data, error } = await createUserDatabaseClient(
       auth.accessToken,
     ).rpc('crm_internal_user_status');
 
     if (error) {
-      const fallback = await createUserSupabaseClient(
+      const fallback = await createUserDatabaseClient(
         auth.accessToken,
       ).rpc('crm_admin_status');
       if (fallback.data === true) {
@@ -220,13 +220,13 @@ adminRouter.use(async (_req, res, next) => {
 });
 
 adminRouter.get('/setup', async (_req, res) => {
-  const db = createUserSupabaseClient(
+  const db = createUserDatabaseClient(
     res.locals.auth!.accessToken,
   );
 
   try {
     // Automatically sync any clinic added in CRM to public.clinics
-    await syncAllCrmClinics(getSupabaseAdmin());
+    await syncAllCrmClinics(getDatabaseAdmin());
 
     const [clinics, services, links, assignments, finance] =
       await Promise.all([
@@ -314,7 +314,7 @@ adminRouter.post('/finance/activate', async (req, res) => {
       return;
     }
 
-    const { data, error } = await createUserSupabaseClient(
+    const { data, error } = await createUserDatabaseClient(
       res.locals.auth!.accessToken,
     ).rpc('crm_activate_finance_client', {
       p_finance_id: client.id,
@@ -362,7 +362,7 @@ adminRouter.post('/clinics', async (req, res) => {
   }
 
   try {
-    const { data, error } = await createUserSupabaseClient(
+    const { data, error } = await createUserDatabaseClient(
       res.locals.auth!.accessToken,
     ).rpc('crm_add_manual_clinic', {
       p_name: parsed.data.name,
@@ -411,7 +411,7 @@ adminRouter.post('/services', async (req, res) => {
   }
 
   try {
-    const { data, error } = await createUserSupabaseClient(
+    const { data, error } = await createUserDatabaseClient(
       res.locals.auth!.accessToken,
     ).rpc('crm_setup_add_service', {
       p_clinic_id: parsed.data.clinic_id,
@@ -461,7 +461,7 @@ adminRouter.post('/services/assign', async (req, res) => {
   }
 
   try {
-    const { error } = await createUserSupabaseClient(
+    const { error } = await createUserDatabaseClient(
       res.locals.auth!.accessToken,
     ).rpc('crm_setup_assign_service', {
       p_clinic_id: parsed.data.clinic_id,

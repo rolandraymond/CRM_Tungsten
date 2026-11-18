@@ -2,7 +2,7 @@ import { Router, type Response } from 'express';
 import { z } from 'zod';
 
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient } from '../lib/database.js';
 
 export const doctorsRouter = Router();
 
@@ -65,7 +65,7 @@ doctorsRouter.get('/', async (req, res) => {
   }
 
   try {
-    const db = createUserSupabaseClient(
+    const db = createUserDatabaseClient(
       res.locals.auth!.accessToken,
     );
 
@@ -125,7 +125,7 @@ doctorsRouter.post('/', async (req, res) => {
   }
 
   try {
-    const db = createUserSupabaseClient(
+    const db = createUserDatabaseClient(
       res.locals.auth!.accessToken,
     );
 
@@ -163,7 +163,7 @@ doctorsRouter.patch('/:doctorId', async (req, res) => {
   }
 
   try {
-    const db = createUserSupabaseClient(
+    const db = createUserDatabaseClient(
       res.locals.auth!.accessToken,
     );
 
@@ -225,7 +225,7 @@ doctorsRouter.get('/:doctorId/services', async (req, res) => {
   }
 
   try {
-    const db = createUserSupabaseClient(
+    const db = createUserDatabaseClient(
       res.locals.auth!.accessToken,
     );
 
@@ -283,7 +283,7 @@ doctorsRouter.put('/:doctorId/services', async (req, res) => {
   }
 
   try {
-    const db = createUserSupabaseClient(
+    const db = createUserDatabaseClient(
       res.locals.auth!.accessToken,
     );
 

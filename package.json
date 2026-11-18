@@ -7,13 +7,14 @@
     "dev": "concurrently -k -n API,WEB \"npm run dev --prefix apps/api\" \"npm run dev --prefix apps/web\"",
     "test": "npm run build --prefix apps/api && node --test tests/*.test.mjs",
     "setup": "npm ci --prefix apps/api && npm ci --prefix apps/web",
-    "build": "npm run build --prefix apps/api && npm run build --prefix apps/web"
+    "build": "npm run build --prefix apps/api && npm run build --prefix apps/web",
+    "start": "npm run start --prefix apps/api",
+    "db:setup": "python3 scripts/configure_native_database.py"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "concurrently": "^10.0.5",
-    "supabase": "^2.117.0"
+    "concurrently": "^10.0.5"
   }
 }

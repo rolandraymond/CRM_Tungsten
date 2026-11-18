@@ -1,3 +1,4 @@
+import { clearInvalidSession } from '../lib/auth-client';
 import { useCallback, useEffect, useState } from 'react';
 
 export function useGet<T>(path: string | null, token: string) {
@@ -24,6 +25,7 @@ export function useGet<T>(path: string | null, token: string) {
           signal: controller.signal,
         });
 
+        if (response.status === 401) clearInvalidSession();
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }

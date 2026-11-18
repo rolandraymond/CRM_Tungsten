@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient, getSupabaseAdmin } from '../lib/supabase.js';
+import { createUserDatabaseClient, getDatabaseAdmin } from '../lib/database.js';
 import { ensureClinicSynced } from '../lib/clinic-sync.js';
 import { ensureCompanyForConvertedClient } from '../lib/company-sync.js';
 
@@ -11,7 +11,7 @@ crmRouter.use(requireAuth);
 function getClient(res: Response) {
   const auth = res.locals.auth;
   if (!auth) throw new Error('Unauthenticated');
-  return { client: createUserSupabaseClient(auth.accessToken), userId: auth.userId };
+  return { client: createUserDatabaseClient(auth.accessToken), userId: auth.userId };
 }
 
 // ============================================================================
@@ -23,7 +23,7 @@ crmRouter.get('/workspaces', async (_req: Request, res: Response) => {
     const { client, userId } = getClient(res);
 
     // 1. Check if user is platform admin
-    const adminClient = getSupabaseAdmin();
+    const adminClient = getDatabaseAdmin();
     const { data: statusData } = await client.rpc('crm_internal_user_status');
     const isPlatformAdmin = Boolean(statusData?.is_admin || statusData?.is_owner);
 
@@ -99,6 +99,10 @@ crmRouter.post('/workspaces/provision', async (req: Request, res: Response) => {
   try {
     const { client, userId } = getClient(res);
     const { name, domain, initialOwnerId, initialOwnerEmail, initialOwnerPassword, initialOwnerName } = req.body;
+    const status = await client.rpc('crm_internal_user_status');
+    if (status.error || !status.data?.is_admin) {
+      return res.status(403).json({ error: 'Platform administrator required' });
+    }
 
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ error: 'Workspace name is required' });
@@ -108,10 +112,10 @@ crmRouter.post('/workspaces/provision', async (req: Request, res: Response) => {
 
     // If an email is provided to create/provision a new user account:
     if (!ownerId && initialOwnerEmail) {
-      const adminClient = getSupabaseAdmin();
+      const adminClient = getDatabaseAdmin();
       const { data: newUser, error: createError } = await adminClient.auth.admin.createUser({
         email: initialOwnerEmail,
-        password: initialOwnerPassword || 'Tungsten2026!Secure',
+        password: initialOwnerPassword,
         email_confirm: true,
         user_metadata: {
           full_name: initialOwnerName || initialOwnerEmail.split('@')[0],
@@ -201,7 +205,7 @@ crmRouter.get('/workspaces/:workspaceId/members', async (req: Request, res: Resp
     }
 
     // Enrich with user emails/names via admin client
-    const adminClient = getSupabaseAdmin();
+    const adminClient = getDatabaseAdmin();
     const userIds = (members || []).map(m => m.user_id);
     let userProfiles: Record<string, { email?: string; full_name?: string }> = {};
 
@@ -262,7 +266,7 @@ crmRouter.post('/workspaces/:workspaceId/members', async (req: Request, res: Res
       });
     }
 
-    const adminClient = getSupabaseAdmin();
+    const adminClient = getDatabaseAdmin();
     let targetUserId: string;
 
     // Check if user already exists
@@ -274,7 +278,7 @@ crmRouter.post('/workspaces/:workspaceId/members', async (req: Request, res: Res
     } else {
       const { data: created, error: createError } = await adminClient.auth.admin.createUser({
         email,
-        password: password || 'Tungsten2026!Secure',
+        password,
         email_confirm: true,
         user_metadata: { full_name: full_name || email.split('@')[0] },
       });
@@ -406,7 +410,7 @@ crmRouter.get('/workspaces/:workspaceId/contacts', async (req: Request, res: Res
     const { workspaceId } = req.params;
     const { q, lead_status, contact_owner_id, source_platform, limit = 50, offset = 0 } = req.query;
 
-    const adminClient = getSupabaseAdmin();
+    const adminClient = getDatabaseAdmin();
     const { data: memberRecord } = await adminClient
       .from('crm_workspace_members')
       .select('role')
@@ -654,7 +658,7 @@ crmRouter.get('/workspaces/:workspaceId/contacts/:id', async (req: Request, res:
     }
 
     // Enrich user names & emails
-    const adminClient = getSupabaseAdmin();
+    const adminClient = getDatabaseAdmin();
     const uids = new Set<string>();
     if (contact.created_by) uids.add(contact.created_by);
     if (contact.contact_owner_id) uids.add(contact.contact_owner_id);
@@ -720,60 +724,6 @@ crmRouter.get('/workspaces/:workspaceId/contacts/:id', async (req: Request, res:
       plan_details.is_approved = isApproved;
       plan_details.status = isApproved ? 'مشترك بها (معتمدة)' : 'قيد المراجعة والتفاوض (لم تُعتمد بعد)';
       plan_details.badge = isApproved ? 'باقة معتمدة ومفعلة' : 'عرض سعر مقترح (قيد المراجعة)';
-    }
-
-    const isClientOrWon =
-      contact.lead_status === 'تم الفوز' ||
-      contact.lead_status === 'عميل' ||
-      deals.some((d: any) => d.deal_stage === 'عميل');
-
-    if (!plan_details && isClientOrWon) {
-      plan_details = {
-        plan_name: 'الباقة الأساسية (Starter)',
-        plan_tier: 'starter',
-        plan_code: 'SL-OFFER-MWGIGNAP-8068',
-        pricing_location: 'تسعير القاهرة',
-        price: 22450,
-        billing_cycle: 'شهرياً',
-        status: 'مشترك بها (معتمدة)',
-        badge: 'باقة معتمدة ومفعلة',
-        is_approved: true,
-        description: 'باقة موجهة خصيصاً لاستهداف أضعف نقطة في حسابك (معدل التفاعل وحفظ المحتوى Engagement & Saves) لضمان إيقاف التراجع بأقل استثمار مالي.',
-        strategy_goal: '🎯 إيقاف هبوط الحساب ورفع مؤشر معدل التفاعل وحفظ المحتوى (Engagement & Saves) ليظهر أول تحسن ملموس في الفحص القادم.',
-        diagnostics: {
-          account: contact.social_profile_link && contact.social_profile_link !== '-' ? contact.social_profile_link : 'HalalChef@',
-          platform: 'YouTube',
-          engagement_rate: '0.5%',
-          analysis_date: '14 نوفمبر',
-          status_label: 'أداء متوسط بإمكانات واعدة',
-        },
-        services: [
-          {
-            id: '1',
-            title: 'منشورات كاروسيل تفاعلية',
-            quantity: 3,
-            unit_price: 3150,
-            total_price: 9450,
-            description: '3 منشورات كاروسيل تعليمية مكثفة لرفع معدل حفظ المحتوى (Saves) وزيادة وقت التصفح',
-          },
-          {
-            id: '2',
-            title: 'إدارة الحسابات والصفحات (فيسبوك)',
-            quantity: 1,
-            unit_price: 5000,
-            total_price: 5000,
-            description: 'إدارة صفحة فيسبوك وضبط مواعيد النشر المثالية لمنع تراجع الحساب في الخوارزميات.',
-          },
-          {
-            id: '3',
-            title: 'خدمة الردود والمتابعة',
-            quantity: 1,
-            unit_price: 8000,
-            total_price: 8000,
-            description: 'خدمة الردود والمتابعة للعملاء والتفاعل السريع.',
-          },
-        ],
-      };
     }
 
     return res.json({
@@ -854,68 +804,6 @@ crmRouter.patch('/workspaces/:workspaceId/contacts/:id', async (req: Request<{ w
               .eq('id', d.id);
           }
         }
-      } else {
-        const defaultPlan = {
-          plan_name: 'الباقة الأساسية (Starter)',
-          plan_tier: 'starter',
-          plan_code: 'SL-OFFER-MWHVWS72-3105',
-          pricing_location: 'تسعير القاهرة',
-          price: 16450,
-          billing_cycle: 'شهرياً',
-          status: 'مشترك بها (معتمدة)',
-          badge: 'باقة معتمدة ونشطة',
-          is_approved: true,
-          description: 'باقة موجهة خصيصاً لاستهداف أضعف نقطة في حسابك (معدل التفاعل وحفظ المحتوى Engagement & Saves) لضمان إيقاف التراجع بأقل استثمار مالي.',
-          strategy_goal: '🎯 إيقاف هبوط الحساب ورفع مؤشر معدل التفاعل وحفظ المحتوى (Engagement & Saves) ليظهر أول تحسن ملموس في الفحص القادم.',
-          diagnostics: {
-            account: data.social_profile_link && data.social_profile_link !== '-' ? data.social_profile_link : 'HalalChef@',
-            platform: 'YouTube',
-            engagement_rate: '0.5%',
-            analysis_date: '14 نوفمبر',
-            status_label: 'أداء متوسط بإمكانات واعدة',
-          },
-          services: [
-            {
-              id: '1',
-              title: 'منشورات كاروسيل تفاعلية',
-              quantity: 3,
-              unit_price: 3150,
-              total_price: 9450,
-              description: '3 منشورات كاروسيل تعليمية مكثفة لرفع معدل حفظ المحتوى (Saves) وزيادة وقت التصفح',
-            },
-            {
-              id: '2',
-              title: 'إدارة صفحة تيك توك',
-              quantity: 1,
-              unit_price: 7000,
-              total_price: 7000,
-              description: 'إدارة متخصصة لصفحة تيك توك مع ضبط الـ Hooks ومواعيد النشر لدفع الخوارزميات.',
-            },
-          ],
-        };
-
-        const planMarker = `__PLAN_JSON__:${JSON.stringify(defaultPlan)}`;
-        const { data: newDeal } = await client
-          .from('crm_deals')
-          .insert({
-            workspace_id: workspaceId,
-            deal_name: data.full_name,
-            deal_stage: 'عميل',
-            deal_amount: 16450,
-            currency: 'EGP',
-            deal_owner_id: data.contact_owner_id,
-            description: planMarker,
-          })
-          .select('id')
-          .single();
-
-        if (newDeal) {
-          await client.from('crm_deal_contacts').insert({
-            workspace_id: workspaceId,
-            deal_id: newDeal.id,
-            contact_id: id,
-          });
-        }
       }
 
       // Automatically classify and add to crm_companies (Clinic, Brand, Company)
@@ -975,8 +863,11 @@ crmRouter.post('/workspaces/:workspaceId/contacts/:id/plan', async (req: Request
     }
 
     const isApproved = Boolean(body.is_approved);
-    const planPrice = Number(body.price) || 0;
-    const planName = body.plan_name || (isApproved ? 'الباقة الأساسية (Starter)' : 'باقة مخصصة (تحليل الحساب)');
+    const planPrice = Number(body.price);
+    if (body.price == null || !Number.isFinite(planPrice) || planPrice < 0 || typeof body.plan_name !== 'string' || !body.plan_name.trim()) {
+      return res.status(400).json({ error: 'A plan name and a valid non-negative price are required' });
+    }
+    const planName = body.plan_name.trim();
     const planTier = body.plan_tier || 'starter';
     const planCode = body.plan_code || `SL-OFFER-${Date.now().toString().slice(-6)}`;
     const pricingLocation = body.pricing_location || 'تسعير القاهرة';
@@ -991,35 +882,10 @@ crmRouter.post('/workspaces/:workspaceId/contacts/:id/plan', async (req: Request
       status: isApproved ? 'مشترك بها (معتمدة)' : 'قيد المراجعة والتفاوض (لم تُعتمد بعد)',
       is_approved: isApproved,
       badge: isApproved ? 'باقة معتمدة ومفعلة' : 'عرض سعر مقترح (قيد المراجعة)',
-      description: body.description || 'باقة تسويقية موجهة لتحقيق أهداف النمو وأفضل عائد.',
-      strategy_goal: body.strategy_goal || '🎯 زيادة التفاعل والوصول وتحقيق تحسن ملموس في الأداء.',
-      diagnostics: body.diagnostics || {
-        account: contact.social_profile_link && contact.social_profile_link !== '-' ? contact.social_profile_link : (contact.full_name || 'الحساب'),
-        platform: 'SocialLens',
-        engagement_rate: '0.5%',
-        analysis_date: new Date().toLocaleDateString('ar-EG', { day: 'numeric', month: 'long' }),
-        status_label: isApproved ? 'عميل نشط ومعتمد' : 'الخطة المرجحة لهذا الحساب (Best Recommended Fit)',
-      },
-      services: (Array.isArray(body.services) && body.services.length > 0)
-        ? body.services
-        : [
-            {
-              id: '1',
-              title: 'منشورات كاروسيل تفاعلية',
-              quantity: 3,
-              unit_price: 3150,
-              total_price: 9450,
-              description: '3 منشورات كاروسيل تعليمية مكثفة لرفع معدل حفظ المحتوى (Saves)',
-            },
-            {
-              id: '2',
-              title: 'إدارة صفحة تيك توك',
-              quantity: 1,
-              unit_price: 7000,
-              total_price: 7000,
-              description: 'إدارة متخصصة لصفحة تيك توك مع ضبط الـ Hooks ومواعيد النشر لدفع الخوارزميات.',
-            },
-          ],
+      description: body.description || '',
+      strategy_goal: body.strategy_goal || '',
+      diagnostics: body.diagnostics ?? null,
+      services: Array.isArray(body.services) ? body.services : [],
       available_plans: body.available_plans || undefined,
     };
 
@@ -1220,7 +1086,7 @@ crmRouter.post('/workspaces/:workspaceId/companies', async (req: Request, res: R
     }
 
     // Auto-sync entity to its corresponding Admin setup department:
-    const admin = getSupabaseAdmin();
+    const admin = getDatabaseAdmin();
     const isClinic =
       companyData.industry === 'عيادة طبية' ||
       companyData.industry === 'مركز طبي' ||
@@ -1408,7 +1274,7 @@ crmRouter.get('/workspaces/:workspaceId/deals', async (req: Request, res: Respon
     const { workspaceId } = req.params;
     const { deal_stage, deal_owner_id, company_id } = req.query;
 
-    const adminClient = getSupabaseAdmin();
+    const adminClient = getDatabaseAdmin();
     const { data: memberRecord } = await adminClient
       .from('crm_workspace_members')
       .select('role')
@@ -1501,7 +1367,7 @@ crmRouter.post('/workspaces/:workspaceId/deals', async (req: Request, res: Respo
       workspace_id: workspaceId,
       deal_name: body.deal_name,
       deal_stage: body.deal_stage || 'مكالمة',
-      deal_amount: body.deal_amount !== undefined ? Number(body.deal_amount) : 25000,
+      deal_amount: body.deal_amount !== undefined ? Number(body.deal_amount) : 0,
       currency: body.currency || 'EGP',
       closing_date: body.closing_date || null,
       deal_owner_id: body.deal_owner_id || userId,
@@ -1784,7 +1650,7 @@ crmRouter.get('/workspaces/:workspaceId/activities', async (req: Request, res: R
     const { workspaceId } = req.params;
     const { activity_type, completion_status, meeting_status, contact_id, company_id, deal_id, assigned_user_id } = req.query;
 
-    const adminClient = getSupabaseAdmin();
+    const adminClient = getDatabaseAdmin();
     const { data: memberRecord } = await adminClient
       .from('crm_workspace_members')
       .select('role')
@@ -2131,7 +1997,7 @@ crmRouter.get('/workspaces/:workspaceId/analytics', async (req: Request, res: Re
       .select('id, deal_owner_id, deal_stage, deal_amount')
       .eq('workspace_id', workspaceId);
 
-    const adminClient = getSupabaseAdmin();
+    const adminClient = getDatabaseAdmin();
     const { data: usersData } = await adminClient.auth.admin.listUsers();
     const userNameMap: Record<string, string> = {};
     for (const u of usersData?.users || []) {
@@ -2269,7 +2135,7 @@ crmRouter.get('/workspaces/:workspaceId/notifications', async (req: Request, res
 
     // Lookup user display names
     const ownerIds = Array.from(new Set((contacts || []).map((c: any) => c.contact_owner_id || c.created_by).filter(Boolean)));
-    const adminClient = getSupabaseAdmin();
+    const adminClient = getDatabaseAdmin();
     let nameMap: Record<string, string> = {};
     if (ownerIds.length > 0) {
       const { data: usersData } = await adminClient.auth.admin.listUsers();
