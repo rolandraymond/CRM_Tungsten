@@ -4,7 +4,7 @@ import {
   createHmac,
   timingSafeEqual,
 } from 'node:crypto';
-import { createClient } from '@supabase/supabase-js';
+import { getDatabaseAdmin } from '../../lib/database.js';
 export const metaWebhookRouter = Router();
 
 function tokensMatch(received: string, expected: string): boolean {
@@ -44,10 +44,8 @@ metaWebhookRouter.get('/', (req, res) => {
 
 metaWebhookRouter.post('/', async (req, res) => {
   const appSecret = process.env.META_APP_SECRET;
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!appSecret || !supabaseUrl || !serviceKey) {
+  if (!appSecret || !process.env.DATABASE_URL) {
     res.status(503).send('Webhook receiver is not configured');
     return;
   }
@@ -99,16 +97,10 @@ if (!timingSafeEqual(receivedSignature, expectedSignature)) {
     return;
   }
 
-  const supabase = createClient(supabaseUrl, serviceKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-      detectSessionInUrl: false,
-    },
-  });
+  const db = getDatabaseAdmin();
 
   try {
-    const { error } = await supabase
+    const { error } = await db
       .from('meta_webhook_inbox')
       .insert({
         payload_hash: createHash('sha256')

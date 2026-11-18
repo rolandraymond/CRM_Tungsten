@@ -1,4 +1,4 @@
-import { createUserSupabaseClient } from '../../lib/supabase.js';
+import { createUserDatabaseClient } from '../../lib/database.js';
 import type {
   AddLeadNoteInput,
   CreateLeadInput,
@@ -11,7 +11,7 @@ export async function createLead(
   accessToken: string,
   input: CreateLeadInput,
 ) {
-  const supabase = createUserSupabaseClient(accessToken);
+  const database = createUserDatabaseClient(accessToken);
 
   const usesLegacyBooking = input.booking !== null
     && !('assignment_mode' in input.booking);
@@ -20,18 +20,18 @@ export async function createLead(
     ? 'crm_create_lead_with_booking'
     : 'crm_create_lead_with_hybrid_booking';
 
-  return await supabase.rpc(rpcName, { p_input: input });
+  return await database.rpc(rpcName, { p_input: input });
 }
 
 export async function listLeads(
   accessToken: string,
   input: ListLeadsInput,
 ) {
-  const supabase = createUserSupabaseClient(accessToken);
+  const database = createUserDatabaseClient(accessToken);
 
   const from = (input.page - 1) * input.page_size;
 
-  return await supabase
+  return await database
     .from('leads')
     .select(`
       id,
@@ -64,7 +64,7 @@ export async function changeLeadStatus(
   leadId: string,
   input: ChangeLeadStatusInput,
 ) {
-  return createUserSupabaseClient(accessToken).rpc('crm_change_lead_status', {
+  return createUserDatabaseClient(accessToken).rpc('crm_change_lead_status', {
     p_clinic_id: input.clinic_id,
     p_lead_id: leadId,
     p_expected_status: input.expected_status,
@@ -78,9 +78,9 @@ export async function addLeadNote(
   leadId: string,
   input: AddLeadNoteInput,
 ) {
-  const supabase = createUserSupabaseClient(accessToken);
+  const database = createUserDatabaseClient(accessToken);
 
-  return await supabase.rpc('add_lead_note', {
+  return await database.rpc('add_lead_note', {
     p_clinic_id: input.clinic_id,
     p_lead_id: leadId,
     p_note: input.note,
@@ -92,10 +92,10 @@ export async function listLeadEvents(
   leadId: string,
   input: ListLeadsInput,
 ) {
-  const supabase = createUserSupabaseClient(accessToken);
+  const database = createUserDatabaseClient(accessToken);
   const from = (input.page - 1) * input.page_size;
 
-  return await supabase
+  return await database
     .from('lead_events')
     .select(`
       id,
@@ -120,7 +120,7 @@ export async function createBooking(
   leadId: string,
   input: CreateBookingInput,
 ) {
-  return createUserSupabaseClient(accessToken).rpc('crm_create_lead_booking', {
+  return createUserDatabaseClient(accessToken).rpc('crm_create_lead_booking', {
     p_clinic_id: input.clinic_id,
     p_lead_id: leadId,
     p_expected_status: input.expected_status,

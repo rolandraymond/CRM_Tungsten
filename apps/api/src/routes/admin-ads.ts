@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient } from '../lib/database.js';
 
 export const adminAdsRouter = Router();
 
@@ -150,7 +150,7 @@ adminAdsRouter.post('/sync', async (req, res) => {
     return;
   }
 
-  const db = createUserSupabaseClient(auth.accessToken);
+  const db = createUserDatabaseClient(auth.accessToken);
 
   try {
     const { data: link, error } = await db

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient, getSupabaseAdmin } from '../lib/supabase.js';
+import { createUserDatabaseClient, getDatabaseAdmin } from '../lib/database.js';
 
 
 export const leadOptionsRouter = Router();
@@ -25,7 +25,7 @@ leadOptionsRouter.get('/', requireAuth, async (req, res) => {
     return;
   }
 
-  const db = createUserSupabaseClient(auth.accessToken);
+  const db = createUserDatabaseClient(auth.accessToken);
 
   try {
     const clinic = await db
@@ -90,7 +90,7 @@ leadOptionsRouter.get('/', requireAuth, async (req, res) => {
     // If the clinic has no active service, auto-ensure a default service so clinic staff can add leads
     if (serviceList.length === 0) {
       try {
-        const adminClient = getSupabaseAdmin();
+        const adminClient = getDatabaseAdmin();
 
         // 1. Check if any service exists in services table
         let { data: defaultService } = await adminClient

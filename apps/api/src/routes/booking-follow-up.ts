@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { DateTime } from 'luxon';
 
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient } from '../lib/database.js';
 
 export const bookingFollowUpRouter = Router();
 
@@ -187,7 +187,7 @@ bookingFollowUpRouter.post(
     }
 
     try {
-      const db = createUserSupabaseClient(auth.accessToken);
+      const db = createUserDatabaseClient(auth.accessToken);
 
       const { data, error } = await db.rpc(
         'crm_follow_up_appointment',
@@ -249,7 +249,7 @@ bookingFollowUpRouter.post(
     }
 
     try {
-      const db = createUserSupabaseClient(auth.accessToken);
+      const db = createUserDatabaseClient(auth.accessToken);
 
       const { data, error } = await db.rpc(
         'crm_follow_up_inquiry',

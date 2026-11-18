@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient, getDatabaseAdmin } from '../lib/database.js';
 import { syncAllCrmClinics } from '../lib/clinic-sync.js';
 
 // Mounted inside adminRouter, after its authentication/admin checks.
@@ -9,7 +8,7 @@ export const adminTeamRouter = Router();
 
 adminTeamRouter.get('/', async (_req, res) => {
   try {
-    const client = createUserSupabaseClient(res.locals.auth!.accessToken);
+    const client = createUserDatabaseClient(res.locals.auth!.accessToken);
     await syncAllCrmClinics(client);
 
     const { data, error } = await client.rpc('crm_team_directory');
@@ -45,24 +44,8 @@ adminTeamRouter.post('/users', async (req, res) => {
     return;
   }
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) {
-    res.status(503).json({
-      error: { code: 'ACCOUNT_CREATION_NOT_CONFIGURED' },
-    });
-    return;
-  }
-
   try {
-    const admin = createClient(url, key, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    });
+    const admin = getDatabaseAdmin();
 
     const { data, error } = await admin.auth.admin.createUser({
       email: parsed.data.email,
@@ -125,7 +108,7 @@ adminTeamRouter.put('/membership', async (req, res) => {
   try {
     const { data: input } = parsed;
 
-    const { error } = await createUserSupabaseClient(
+    const { error } = await createUserDatabaseClient(
       res.locals.auth!.accessToken,
     ).rpc('crm_set_membership', {
       p_clinic_id: input.clinic_id,

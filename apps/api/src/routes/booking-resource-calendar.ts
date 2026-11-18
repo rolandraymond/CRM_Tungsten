@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { DateTime } from 'luxon';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient } from '../lib/database.js';
 import {
   AvailabilityError,
   buildResourceAvailability,
@@ -127,7 +127,7 @@ bookingResourceCalendarRouter.get('/', async (req, res) => {
   }
   const start = month.startOf('day').toUTC().toISO()!;
   const end = month.plus({ months: 1, minutes: 1440 }).toUTC().toISO()!;
-  const db = createUserSupabaseClient(auth.accessToken);
+  const db = createUserDatabaseClient(auth.accessToken);
   const clinicId = input.clinic_id;
 
   try {

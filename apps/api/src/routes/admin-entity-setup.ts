@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { getSupabaseAdmin, createUserSupabaseClient } from '../lib/supabase.js';
+import { getDatabaseAdmin, createUserDatabaseClient } from '../lib/database.js';
 
 export const adminEntitySetupRouter = Router();
 
@@ -10,7 +10,7 @@ export const adminEntitySetupRouter = Router();
 
 adminEntitySetupRouter.get('/companies-setup', async (_req: Request, res: Response) => {
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getDatabaseAdmin();
     const auth = res.locals.auth;
 
     // 1. Fetch companies
@@ -52,7 +52,7 @@ adminEntitySetupRouter.get('/companies-setup', async (_req: Request, res: Respon
     }));
 
     // 5. Fetch catalog services
-    const client = createUserSupabaseClient(auth!.accessToken);
+    const client = createUserDatabaseClient(auth!.accessToken);
     const { data: services } = await client
       .from('services')
       .select('id, service_name, service_code, is_active')
@@ -109,7 +109,7 @@ const companyUserSchema = z.object({
   company_id: z.string().uuid(),
   full_name: z.string().trim().min(1).max(200),
   email: z.string().email().trim().toLowerCase(),
-  password: z.string().min(8).max(128),
+  password: z.string().min(12).max(128),
   role: z.enum(['company_owner', 'company_manager', 'sales', 'owner', 'manager']),
 });
 
@@ -122,7 +122,7 @@ adminEntitySetupRouter.post('/companies-setup/users', async (req: Request, res: 
   const { company_id, full_name, email, password, role } = parsed.data;
 
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getDatabaseAdmin();
 
     // 1. Look up the company
     const { data: company, error: cErr } = await admin
@@ -254,7 +254,7 @@ adminEntitySetupRouter.put('/companies-setup/membership', async (req: Request, r
   }
 
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getDatabaseAdmin();
     const { data, error } = await admin
       .from('crm_workspace_members')
       .update({
@@ -284,7 +284,7 @@ adminEntitySetupRouter.delete('/companies-setup/membership', async (req: Request
   }
 
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getDatabaseAdmin();
     const { error } = await admin
       .from('crm_workspace_members')
       .delete()
@@ -314,7 +314,7 @@ adminEntitySetupRouter.post('/companies-setup/services', async (req: Request, re
 
   try {
     const auth = res.locals.auth;
-    const client = createUserSupabaseClient(auth!.accessToken);
+    const client = createUserDatabaseClient(auth!.accessToken);
     const code = parsed.data.service_code || 'SRV-' + Date.now().toString(36).toUpperCase();
 
     const { data, error } = await client
@@ -343,9 +343,9 @@ adminEntitySetupRouter.post('/companies-setup/services', async (req: Request, re
 
 adminEntitySetupRouter.get('/individuals-setup', async (_req: Request, res: Response) => {
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getDatabaseAdmin();
     const auth = res.locals.auth;
-    const client = createUserSupabaseClient(auth!.accessToken);
+    const client = createUserDatabaseClient(auth!.accessToken);
 
     // 1. Fetch personal brand entities from crm_companies
     let { data: brandCompanies, error: bErr } = await admin
@@ -496,7 +496,7 @@ adminEntitySetupRouter.post('/individuals-setup/users', async (req: Request, res
     brand_id: z.string().uuid(),
     full_name: z.string().trim().min(1).max(200),
     email: z.string().email().trim().toLowerCase(),
-    password: z.string().min(8).max(128),
+    password: z.string().min(12).max(128),
     role: z.enum([
       'brand_owner',
       'brand_manager',
@@ -516,7 +516,7 @@ adminEntitySetupRouter.post('/individuals-setup/users', async (req: Request, res
   const { brand_id, full_name, email, password, role } = parsed.data;
 
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getDatabaseAdmin();
 
     // 1. Find brand and its workspace
     const { data: brand, error: bErr } = await admin
@@ -635,7 +635,7 @@ adminEntitySetupRouter.put('/individuals-setup/membership', async (req: Request,
   }
 
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getDatabaseAdmin();
     const { data, error } = await admin
       .from('crm_workspace_members')
       .update({
@@ -666,7 +666,7 @@ adminEntitySetupRouter.delete('/individuals-setup/membership', async (req: Reque
   }
 
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getDatabaseAdmin();
     const { error } = await admin
       .from('crm_workspace_members')
       .delete()
@@ -699,7 +699,7 @@ adminEntitySetupRouter.post('/individuals-setup/services/assign', async (req: Re
   const { brand_id, service_id, is_active } = parsed.data;
 
   try {
-    const admin = getSupabaseAdmin();
+    const admin = getDatabaseAdmin();
     const { data, error } = await admin
       .from('brand_services')
       .upsert({
@@ -733,7 +733,7 @@ adminEntitySetupRouter.post('/individuals-setup/services', async (req: Request, 
 
   try {
     const auth = res.locals.auth;
-    const client = createUserSupabaseClient(auth!.accessToken);
+    const client = createUserDatabaseClient(auth!.accessToken);
     const code = parsed.data.service_code || 'IND-SRV-' + Date.now().toString(36).toUpperCase();
 
     const { data, error } = await client

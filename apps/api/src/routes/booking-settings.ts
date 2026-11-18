@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient } from '../lib/database.js';
 
 export const bookingSettingsRouter = Router();
 
@@ -103,7 +103,7 @@ bookingSettingsRouter.get(
     }
 
     try {
-      const db = createUserSupabaseClient(
+      const db = createUserDatabaseClient(
         res.locals.auth!.accessToken,
       );
 
@@ -160,7 +160,7 @@ bookingSettingsRouter.put(
     }
 
     try {
-      const db = createUserSupabaseClient(
+      const db = createUserDatabaseClient(
         res.locals.auth!.accessToken,
       );
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
-import { supabase } from '../../lib/supabase';
+import type { AuthSession as Session } from '../../lib/auth-client';
+import { authClient } from '../../lib/auth-client';
 
 export function useSession() {
   const [state, setState] = useState<{
@@ -17,7 +17,7 @@ export function useSession() {
     let active = true;
     let receivedEvent = false;
 
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data } = authClient.auth.onAuthStateChange((_event, session) => {
       receivedEvent = true;
 
       if (active) {
@@ -25,7 +25,7 @@ export function useSession() {
       }
     });
 
-    void supabase.auth.getSession()
+    void authClient.auth.getSession()
       .then(({ data: result, error }) => {
         if (active && !receivedEvent) {
           setState({

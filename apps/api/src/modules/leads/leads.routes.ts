@@ -3,7 +3,7 @@ import { hybridBookingFailure } from '../../routes/hybrid-booking.js';
 import { z } from 'zod';
 
 import { requireAuth } from '../../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../../lib/supabase.js';
+import { createUserDatabaseClient } from '../../lib/database.js';
 
 import {
   addLeadNoteSchema,
@@ -158,7 +158,7 @@ leadsRouter.get('/:leadId', requireAuth, async (req, res) => {
   }
 
   try {
-    const { data, error } = await createUserSupabaseClient(
+    const { data, error } = await createUserDatabaseClient(
       res.locals.auth!.accessToken,
     )
       .from('leads')

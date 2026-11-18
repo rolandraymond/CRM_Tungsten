@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient, getSupabaseAdmin } from '../lib/supabase.js';
+import { createUserDatabaseClient, getDatabaseAdmin } from '../lib/database.js';
 import { syncAllCrmClinics } from '../lib/clinic-sync.js';
 
 export const clinicsRouter = Router();
@@ -18,16 +18,16 @@ clinicsRouter.get('/', requireAuth, async (_req, res) => {
     return;
   }
 
-  const supabase = createUserSupabaseClient(auth.accessToken);
+  const database = createUserDatabaseClient(auth.accessToken);
 
   // Automatically ensure CRM-added clinics are synced into public.clinics using admin client
   try {
-    await syncAllCrmClinics(getSupabaseAdmin());
+    await syncAllCrmClinics(getDatabaseAdmin());
   } catch (syncErr) {
     console.error('[Clinics] syncAllCrmClinics error:', syncErr);
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await database
     .from('clinics')
     .select('id, name')
     .is('archived_at', null)
@@ -45,7 +45,7 @@ clinicsRouter.get('/', requireAuth, async (_req, res) => {
     return;
   }
 
-  const memberships = await supabase
+  const memberships = await database
     .from('clinic_memberships')
     .select('clinic_id, role')
     .eq('user_id', auth.userId)

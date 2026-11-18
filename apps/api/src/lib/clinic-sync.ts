@@ -1,15 +1,15 @@
-import { SupabaseClient } from '@supabase/supabase-js';
-import { getSupabaseAdmin } from './supabase.js';
+import type { NativeDatabaseClient } from './database.js';
+import { getDatabaseAdmin } from './database.js';
 
 /**
  * Ensures a clinic exists in the public.clinics table with active services
  * and is mirrored in crm_companies, so it is instantly available across
  * Admin Setup (/admin/setup), Team management (/admin/team), and Lead creation (/leads/new).
  */
-export async function ensureClinicSynced(client: SupabaseClient | null, clinicName: string) {
+export async function ensureClinicSynced(client: NativeDatabaseClient | null, clinicName: string) {
   if (!clinicName || !clinicName.trim()) return null;
   const name = clinicName.trim();
-  const admin = getSupabaseAdmin();
+  const admin = getDatabaseAdmin();
 
   try {
     // 1. Check if clinic already exists in public.clinics
@@ -108,8 +108,8 @@ export async function ensureClinicSynced(client: SupabaseClient | null, clinicNa
  * Scans all CRM companies and contacts that represent clinics or medical centers
  * and ensures they are mirrored in public.clinics with active services.
  */
-export async function syncAllCrmClinics(client?: SupabaseClient, workspaceId?: string) {
-  const admin = getSupabaseAdmin();
+export async function syncAllCrmClinics(client?: NativeDatabaseClient, workspaceId?: string) {
+  const admin = getDatabaseAdmin();
   try {
     // 1. Companies with clinic/medical industry or keywords
     let query = admin

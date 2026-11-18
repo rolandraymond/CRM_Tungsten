@@ -3,7 +3,7 @@ import { DateTime } from 'luxon';
 import { z } from 'zod';
 
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient } from '../lib/database.js';
 
 export const bookingFollowUpBoardRouter = Router();
 
@@ -98,7 +98,7 @@ bookingFollowUpBoardRouter.get('/', async (req, res) => {
     page_size: pageSize,
   } = parsed.data;
 
-  const db = createUserSupabaseClient(auth.accessToken);
+  const db = createUserDatabaseClient(auth.accessToken);
 
   try {
     const [clinic, membership, admin, internalMember] = await Promise.all([

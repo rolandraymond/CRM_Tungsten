@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient } from '../lib/database.js';
 
 export const internalClientsRouter = Router();
 
@@ -50,7 +50,7 @@ const updateClientSchema = z.strictObject({
 // GET /api/internal/clients
 internalClientsRouter.get('/', async (_req, res) => {
   const auth = res.locals.auth!;
-  const db = createUserSupabaseClient(auth.accessToken);
+  const db = createUserDatabaseClient(auth.accessToken);
 
   try {
     const { data, error } = await db
@@ -97,7 +97,7 @@ internalClientsRouter.post('/', async (req, res) => {
     return;
   }
 
-  const db = createUserSupabaseClient(auth.accessToken);
+  const db = createUserDatabaseClient(auth.accessToken);
 
   try {
     const payload = {
@@ -152,7 +152,7 @@ internalClientsRouter.put('/:id', async (req, res) => {
     return;
   }
 
-  const db = createUserSupabaseClient(auth.accessToken);
+  const db = createUserDatabaseClient(auth.accessToken);
 
   try {
     const { data, error } = await db

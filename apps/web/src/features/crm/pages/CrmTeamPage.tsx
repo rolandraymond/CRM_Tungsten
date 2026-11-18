@@ -244,7 +244,7 @@ function AddMemberModal({
   const { activeWorkspace, apiFetch } = useCrm();
 
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('Tungsten2026!');
+  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<string>(isInternal ? 'sales' : 'company_manager');
   const [managerId, setManagerId] = useState('');

@@ -1,86 +1,21 @@
 import type { RequestHandler } from 'express';
-import { supabaseAuth } from '../lib/supabase.js';
+import { findSession } from '../lib/session-store.js';
+import { requestContext } from '../lib/request-context.js';
 
 declare module 'express-serve-static-core' {
-  interface Locals {
-    auth?: {
-      userId: string;
-      email: string | null;
-      accessToken: string;
-    };
-  }
+  interface Locals { auth?: { userId: string; email: string | null; accessToken: string }; }
 }
 
 export const requireAuth: RequestHandler = async (req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
-
-const authorization = req.get('authorization');
-const match = authorization?.match(/^Bearer ([^\s]+)$/i);
-const token = match?.[1];
-
-
-
-  if (!token) {
-    res.status(401).json({
-      error: {
-        code: 'UNAUTHENTICATED',
-        message: 'A Bearer access token is required',
-      },
-    });
-    return;
-  }
-
+  const token = req.get('authorization')?.match(/^Bearer ([^\s]+)$/i)?.[1];
+  if (!token) { res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'A Bearer access token is required' } }); return; }
   try {
-    const { data, error } = await supabaseAuth.auth.getUser(token);
-
-    if (error) {
-      console.warn('[Auth verification failed]', {
-        status: error.status,
-        code: error.code,
-        message: error.message,
-      });
-
-      const authUnavailable =
-        !error.status ||
-        error.status >= 500 ||
-        error.status === 429;
-
-      res.status(authUnavailable ? 503 : 401).json({
-        error: {
-          code: authUnavailable
-            ? 'AUTH_UNAVAILABLE'
-            : 'UNAUTHENTICATED',
-          message: authUnavailable
-            ? 'Authentication service is temporarily unavailable'
-            : 'Invalid or expired access token',
-        },
-      });
-      return;
-    }
-
-    if (!data.user) {
-      res.status(401).json({
-        error: {
-          code: 'UNAUTHENTICATED',
-          message: 'User not found',
-        },
-      });
-      return;
-    }
-
-    res.locals.auth = {
-      userId: data.user.id,
-      email: data.user.email ?? null,
-      accessToken: token,
-    };
-
-    next();
+    const session = await findSession(token);
+    if (!session) { res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'Invalid or expired session' } }); return; }
+    res.locals.auth = { userId: session.user.id, email: session.user.email ?? null, accessToken: token };
+    requestContext.run({ user: session.user, accessToken: token }, () => next());
   } catch {
-    res.status(503).json({
-      error: {
-        code: 'AUTH_UNAVAILABLE',
-        message: 'Authentication service is temporarily unavailable',
-      },
-    });
+    res.status(503).json({ error: { code: 'AUTH_UNAVAILABLE', message: 'Authentication service is temporarily unavailable' } });
   }
 };

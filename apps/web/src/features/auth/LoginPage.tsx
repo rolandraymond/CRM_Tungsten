@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase } from '../../lib/supabase';
+import { authClient } from '../../lib/auth-client';
 import Brand from '../../components/Brand';
 import Preferences from '../../components/Preferences';
 
@@ -28,7 +28,7 @@ export default function LoginPage() {
         });
       } catch {}
 
-      const { error: authError } = await supabase.auth.signInWithPassword({
+      const { error: authError } = await authClient.auth.signInWithPassword({
         email: email.trim(),
         password,
       });

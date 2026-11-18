@@ -3,7 +3,7 @@ import { DateTime } from 'luxon';
 import { z } from 'zod';
 
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient } from '../lib/database.js';
 
 export const hybridBookingRouter = Router();
 hybridBookingRouter.use(requireAuth);
@@ -128,9 +128,9 @@ hybridBookingRouter.post('/:leadId', async (req, res) => {
   const startsAt = DateTime.fromISO(input.starts_at, { setZone: true }).toUTC().toISO()!;
 
   try {
-    // Use the user's token so Supabase auth.uid() identifies the staff member.
+    // Use the user's token so database auth.uid() identifies the staff member.
     // The RPC checks permissions and derives service/duration from stored data.
-    const db = createUserSupabaseClient(auth.accessToken);
+    const db = createUserDatabaseClient(auth.accessToken);
     const { data, error } = await db.rpc('crm_create_hybrid_booking', {
       p_clinic_id: input.clinic_id,
       p_lead_id: leadId.data,

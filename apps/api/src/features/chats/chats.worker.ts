@@ -1,12 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
+import { getDatabaseAdmin } from '../../lib/database.js';
 import { sendMetaText } from './meta-send.js';
 import type { MetaSendConfig } from './meta-send.js';
 
 export function startChatsWorker() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) { console.warn('[Chats worker] Service credentials missing; worker disabled'); return () => {}; }
-  const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  if (!process.env.DATABASE_URL) return () => {};
+  const db = getDatabaseAdmin();
   let stopped = false;
   let running = false;
   async function tick() {
@@ -14,7 +12,7 @@ export function startChatsWorker() {
     running = true;
     try {
       const inbox = await db.rpc('crm_process_meta_inbox');
-      if (inbox.error) { console.error('[Chats worker] Inbox failed:', inbox.error.code); return; }
+      if (inbox.error) { console.error('[Chats worker] Inbox failed:', inbox.error.code, inbox.error.message); return; }
       if (process.env.META_CHAT_SEND_ENABLED !== 'true') return;
       // After a crash a claimed send has an uncertain result, not a safe retry.
       await db.from('chat_messages').update({ status: 'unknown', failure_code: 'WORKER_INTERRUPTED' })

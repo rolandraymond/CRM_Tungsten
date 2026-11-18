@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { Workspace, WorkspaceRole } from './types';
-import { supabase } from '../../lib/supabase';
+import { authClient } from '../../lib/auth-client';
 
 interface CrmContextType {
   token: string;
@@ -119,7 +119,7 @@ export function CrmProvider({
           // ignore json error
         }
         if (res.status === 401 && !window.location.pathname.includes('/login')) {
-          void supabase.auth.signOut().finally(() => {
+          void authClient.auth.signOut().finally(() => {
             window.location.href = '/login';
           });
         }

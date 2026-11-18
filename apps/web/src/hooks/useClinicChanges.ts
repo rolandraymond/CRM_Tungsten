@@ -1,65 +1,26 @@
-import { useEffect, useId } from 'react';
-import { supabase } from '../lib/supabase';
+import { useEffect } from 'react';
 
 type Table = 'leads' | 'appointments' | 'clinic_ads' | 'chat_channels' | 'chat_conversations'   | 'chat_referrals'| 'chat_messages';
 
-// The event only invalidates the screen. The authenticated API remains the
-// source of truth, including after a reconnect or an inactive browser tab.
-export function useClinicChanges(
-  clinicId: string,
-  tables: readonly Table[],
-  onChange: () => void,
-) {
-  const subscriberId = useId();
+// Poll visible screens; authenticated APIs remain the source of truth.
+export function useClinicChanges(clinicId: string, tables: readonly Table[], onChange: () => void) {
+  const tableKey = tables.join(',');
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-
+    if (!clinicId || !tableKey) return;
+    let debounce: ReturnType<typeof setTimeout> | undefined;
     const refresh = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(onChange, 500);
+      if (document.visibilityState !== 'visible') return;
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(onChange, 500);
     };
-
-    const onFocus = () => refresh();
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') refresh();
-    };
-
-    let channel = supabase.channel(
-      `clinic-dashboard:${clinicId}:${tables.join('-')}:${subscriberId}`,
-    );
-
-    for (const table of tables) {
-      for (const event of ['INSERT', 'UPDATE'] as const) {
-        channel = channel.on(
-          'postgres_changes',
-          {
-            event,
-            schema: 'public',
-            table,
-            filter: `clinic_id=eq.${clinicId}`,
-          },
-          refresh,
-        );
-      }
-    }
-
-    let subscribedBefore = false;
-    channel.subscribe(status => {
-      if (status === 'SUBSCRIBED') {
-        // The page fetches on mount; refresh only after a reconnect.
-        if (subscribedBefore) refresh();
-        subscribedBefore = true;
-      }
-    });
-
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onVisibility);
-
+    const interval = setInterval(refresh, 15_000);
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
     return () => {
-      if (timer) clearTimeout(timer);
-      window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onVisibility);
-      void supabase.removeChannel(channel);
+      clearInterval(interval);
+      if (debounce) clearTimeout(debounce);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
     };
-  }, [clinicId, tables, onChange, subscriberId]);
+  }, [clinicId, tableKey, onChange]);
 }

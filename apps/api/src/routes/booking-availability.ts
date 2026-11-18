@@ -3,7 +3,7 @@ import { DateTime } from 'luxon';
 import { z } from 'zod';
 
 import { requireAuth } from '../middleware/require-auth.js';
-import { createUserSupabaseClient } from '../lib/supabase.js';
+import { createUserDatabaseClient } from '../lib/database.js';
 
 import {
   buildBookingMonth,
@@ -80,7 +80,7 @@ const appointmentFields = `
 `;
 
 async function readAppointments(
-  db: ReturnType<typeof createUserSupabaseClient>,
+  db: ReturnType<typeof createUserDatabaseClient>,
   clinicId: string,
   start: string,
   end: string,
@@ -211,7 +211,7 @@ bookingAvailabilityRouter.get(
       return;
     }
 
-    const db = createUserSupabaseClient(auth.accessToken);
+    const db = createUserDatabaseClient(auth.accessToken);
 
     try {
       const [clinic, membership, admin, internalMember] = await Promise.all([

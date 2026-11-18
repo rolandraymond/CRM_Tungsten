@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Session } from '@supabase/supabase-js';
+import type { AuthSession as Session } from '../lib/auth-client';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -22,7 +22,7 @@ import {
   Award,
 } from 'lucide-react';
 
-import { supabase } from '../lib/supabase';
+import { authClient } from '../lib/auth-client';
 import { useGet } from '../hooks/useGet';
 import type {
   Clinic,
@@ -168,7 +168,7 @@ export default function AppLayout({
         });
       } catch {}
 
-      const result = await supabase.auth.signOut();
+      const result = await authClient.auth.signOut();
       setError(Boolean(result.error));
       window.location.href = '/login';
     } catch {

@@ -963,7 +963,7 @@ function DealFormModal({
   const [dealStage, setDealStage] = useState<DealStage>(
     deal?.deal_stage || defaultStage || (mode === 'deals' ? 'عقد' : 'مكالمة')
   );
-  const [dealAmount, setDealAmount] = useState(deal ? deal.deal_amount.toString() : '25000');
+  const [dealAmount, setDealAmount] = useState(deal ? deal.deal_amount.toString() : '0');
   const [companyId, setCompanyId] = useState(deal?.company_id || '');
   const [selectedContactIds, setSelectedContactIds] = useState<string[]>(
     deal?.contacts ? deal.contacts.map((c) => c.id) : []
@@ -1043,7 +1043,7 @@ function DealFormModal({
       const payload: Record<string, any> = {
         deal_name: dealName,
         deal_stage: dealStage,
-        deal_amount: Number(dealAmount) || 25000,
+        deal_amount: Number(dealAmount) || 0,
         currency: 'EGP',
         company_id: companyId || null,
         closing_date: closingDate || null,
