@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useCrm } from '../CrmContext';
+import { useCrmLang } from '../useCrmLang';
 import {
   Webhook,
   Copy,
@@ -39,6 +40,7 @@ interface WebhookLog {
 
 export default function CrmSocialLensIntegrationPage() {
   const { activeWorkspace, apiFetch } = useCrm();
+  const { ar, dir, tr } = useCrmLang();
 
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedSecret, setCopiedSecret] = useState(false);
@@ -225,7 +227,7 @@ export default function CrmSocialLensIntegrationPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir={dir}>
       {/* Page Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-line bg-surface p-5 shadow-sm">
         <div className="flex items-center gap-3">
@@ -235,15 +237,18 @@ export default function CrmSocialLensIntegrationPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-black text-ink">
-                الربط البرمجي مع SocialLens (Webhook Integration)
+                {tr('الربط البرمجي مع SocialLens (Webhook Integration)', 'SocialLens Webhook Integration')}
               </h1>
               <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[11px] font-bold text-emerald-600">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                متصل وجاهز للاستقبال
+                {tr('متصل وجاهز للاستقبال', 'Connected & Ready')}
               </span>
             </div>
             <p className="text-xs text-muted mt-0.5">
-              استقبال العملاء المحتملين وتحديث حالاتهم وترقيتهم تلقائياً إلى الصفقات المعتمدة (Deals) فور تفعيلهم كعملاء نشطين.
+              {tr(
+                'استقبال العملاء المحتملين وتحديث حالاتهم وترقيتهم تلقائياً إلى الصفقات المعتمدة (Deals) فور تفعيلهم كعملاء نشطين.',
+                'Receive leads, sync status updates, and automatically promote active clients into Won Deals.'
+              )}
             </p>
           </div>
         </div>
@@ -255,7 +260,7 @@ export default function CrmSocialLensIntegrationPage() {
             className="flex items-center gap-1.5 rounded-xl border border-line bg-surface/50 px-3 py-2 text-xs font-bold text-muted hover:text-ink transition"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loadingLogs ? 'animate-spin' : ''}`} />
-            <span>تحديث السجل</span>
+            <span>{tr('تحديث السجل', 'Refresh Log')}</span>
           </button>
           <Link
             to="/crm/deals"
@@ -638,28 +643,28 @@ export default function CrmSocialLensIntegrationPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
+            <table className={`w-full text-xs ${ar ? 'text-right' : 'text-left'}`}>
               <thead className="border-b border-line bg-surface/60 text-muted">
                 <tr>
-                  <th className="px-3 py-2.5 font-semibold">التاريخ والتوقيت</th>
-                  <th className="px-3 py-2.5 font-semibold">نوع الحدث (Event)</th>
-                  <th className="px-3 py-2.5 font-semibold">العميل</th>
-                  <th className="px-3 py-2.5 font-semibold">من تابع معه (السيلز)</th>
-                  <th className="px-3 py-2.5 font-semibold">حالة العميل / المرحلة</th>
-                  <th className="px-3 py-2.5 font-semibold">النتيجة</th>
-                  <th className="px-3 py-2.5 font-semibold text-center">إجراءات</th>
+                  <th className="px-3 py-2.5 font-semibold">{tr('التاريخ والتوقيت', 'Date & Time')}</th>
+                  <th className="px-3 py-2.5 font-semibold">{tr('نوع الحدث (Event)', 'Event Type')}</th>
+                  <th className="px-3 py-2.5 font-semibold">{tr('العميل', 'Client')}</th>
+                  <th className="px-3 py-2.5 font-semibold">{tr('من تابع معه (السيلز)', 'Sales Rep')}</th>
+                  <th className="px-3 py-2.5 font-semibold">{tr('حالة العميل / المرحلة', 'Status / Stage')}</th>
+                  <th className="px-3 py-2.5 font-semibold">{tr('النتيجة', 'Result')}</th>
+                  <th className="px-3 py-2.5 font-semibold text-center">{tr('إجراءات', 'Actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/60">
                 {logs.map((log) => (
                   <tr key={log.id} className="hover:bg-surface/50 transition">
                     <td className="px-3 py-2.5 text-muted font-mono whitespace-nowrap">
-                      {new Date(log.timestamp).toLocaleTimeString('ar-EG', {
+                      {new Date(log.timestamp).toLocaleTimeString(ar ? 'ar-EG-u-nu-latn' : 'en-US', {
                         hour: '2-digit',
                         minute: '2-digit',
                         second: '2-digit',
                       })}{' '}
-                      {new Date(log.timestamp).toLocaleDateString('ar-EG')}
+                      {new Date(log.timestamp).toLocaleDateString(ar ? 'ar-EG-u-nu-latn' : 'en-US')}
                     </td>
                     <td className="px-3 py-2.5 font-bold font-mono text-[11px] text-indigo-600">
                       {log.event}

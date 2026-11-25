@@ -568,7 +568,7 @@ export default function TungstenClientsPage() {
                     <span className="flex items-center gap-1 text-[11px] text-muted">
                       <Calendar className="size-3" />
                       {new Date(client.created_at).toLocaleDateString(
-                        ar ? 'ar-EG' : 'en-GB',
+                        ar ? 'ar-EG-u-nu-latn' : 'en-GB',
                         {
                           day: 'numeric',
                           month: 'short',

@@ -451,7 +451,40 @@ crmRouter.get('/workspaces/:workspaceId/contacts', async (req: Request, res: Res
       return res.status(400).json({ error: error.message });
     }
 
-    return res.json({ data, total: count });
+    // Attach latest linked deal/package summary (amount, stage, name) to each contact
+    const contactIds = (data || []).map((c: any) => c.id);
+    const dealMap = new Map<string, any>();
+
+    if (contactIds.length > 0) {
+      const { data: dealLinks } = await adminClient
+        .from('crm_deal_contacts')
+        .select('contact_id, crm_deals (id, deal_name, deal_stage, deal_amount, currency, description, updated_at)')
+        .in('contact_id', contactIds);
+
+      for (const link of dealLinks || []) {
+        const d: any = (link as any).crm_deals;
+        if (!d) continue;
+        const existing = dealMap.get(link.contact_id);
+        if (!existing || new Date(d.updated_at || 0).getTime() > new Date(existing.updated_at || 0).getTime()) {
+          dealMap.set(link.contact_id, d);
+        }
+      }
+    }
+
+    const enriched = (data || []).map((c: any) => {
+      const linkedDeal = dealMap.get(c.id);
+      return {
+        ...c,
+        deal_id: linkedDeal?.id || null,
+        deal_name: linkedDeal?.deal_name || null,
+        deal_stage: linkedDeal?.deal_stage || null,
+        deal_amount: linkedDeal && linkedDeal.deal_amount !== null && linkedDeal.deal_amount !== undefined
+          ? Number(linkedDeal.deal_amount)
+          : null,
+      };
+    });
+
+    return res.json({ data: enriched, total: count });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -464,6 +497,10 @@ crmRouter.post('/workspaces/:workspaceId/contacts', async (req: Request<{ worksp
     const body = req.body;
 
     const rawPhone = (body.phone_number || '').trim();
+    const rawName = (body.full_name || '').trim();
+    if (!rawName) {
+      return res.status(400).json({ error: 'يرجى إدخال اسم العميل / الليد بالكامل' });
+    }
     const cleanDigits = rawPhone.replace(/\D/g, '');
     const rawEmail = (body.email || '').trim().toLowerCase();
 
@@ -548,13 +585,51 @@ crmRouter.post('/workspaces/:workspaceId/contacts', async (req: Request<{ worksp
       return res.status(400).json({ error: error.message });
     }
 
-    // Auto-classify and sync entity to its corresponding Admin setup department:
-    await ensureCompanyForConvertedClient(client, data.id, workspaceId, userId);
-    if (
-      contactData.business_name &&
-      (contactData.medical_specialty || contactData.clinic_address || body.category === 'clinic_doctor' || contactData.business_name.includes('عياد'))
-    ) {
-      await ensureClinicSynced(client, contactData.business_name);
+    // Auto-classify and sync entity to its corresponding Admin setup department ONLY when won or contract
+    const hasExplicitPrice = body.deal_amount !== undefined && body.deal_amount !== null && String(body.deal_amount).trim() !== '' && Number(body.deal_amount) > 0;
+    const isInitialContract = contactData.lead_status === 'عقد';
+    const isInitialWon = contactData.lead_status === 'تم الفوز' || contactData.lead_status === 'عميل';
+    const isInitialConverted = isInitialContract || isInitialWon;
+    if (isInitialConverted) {
+      await ensureCompanyForConvertedClient(client, data.id, workspaceId, userId);
+      if (
+        contactData.business_name &&
+        (contactData.medical_specialty || contactData.clinic_address || body.category === 'clinic_doctor' || contactData.business_name.includes('عياد'))
+      ) {
+        await ensureClinicSynced(client, contactData.business_name);
+      }
+    }
+
+    // Optional manual package amount / auto Won Deal when created as 'عقد' or 'تم الفوز'
+    if (hasExplicitPrice || isInitialConverted) {
+      const parsedAmount = hasExplicitPrice ? Number(body.deal_amount) : 0;
+      const pkgTitle = (body.package_name && String(body.package_name).trim())
+        ? `${String(body.package_name).trim()} - ${data.full_name}`
+        : data.full_name;
+
+      const { data: createdDeal } = await client
+        .from('crm_deals')
+        .insert({
+          workspace_id: workspaceId,
+          deal_name: pkgTitle,
+          deal_stage: isInitialContract ? 'عقد' : isInitialWon ? 'عميل' : 'مكالمة',
+          deal_amount: parsedAmount,
+          currency: 'EGP',
+          deal_owner_id: contactData.contact_owner_id || userId,
+          created_by: userId,
+          company_id: contactData.company_id || null,
+          description: body.package_name ? `باكيدج مخصص: ${body.package_name}` : null,
+        })
+        .select('id')
+        .single();
+
+      if (createdDeal) {
+        await client.from('crm_deal_contacts').insert({
+          workspace_id: workspaceId,
+          deal_id: createdDeal.id,
+          contact_id: data.id,
+        });
+      }
     }
 
     return res.status(201).json({ data });
@@ -726,6 +801,33 @@ crmRouter.get('/workspaces/:workspaceId/contacts/:id', async (req: Request, res:
       plan_details.badge = isApproved ? 'باقة معتمدة ومفعلة' : 'عرض سعر مقترح (قيد المراجعة)';
     }
 
+    // Do NOT fabricate a fake plan if none was selected or priced for this contact
+    if (!plan_details) {
+      const pricedDeal = deals.find((d: any) => Number(d.deal_amount) > 0);
+      if (pricedDeal) {
+        const isApproved =
+          contact.lead_status === 'تم الفوز' ||
+          contact.lead_status === 'عميل' ||
+          contact.lead_status === 'عقد' ||
+          pricedDeal.deal_stage === 'عميل' ||
+          pricedDeal.deal_stage === 'عقد';
+        plan_details = {
+          plan_name: pricedDeal.deal_name || 'باقة مخصصة',
+          plan_tier: 'custom',
+          plan_code: contact.lead_id || `PKG-${String(pricedDeal.id).slice(0, 6).toUpperCase()}`,
+          pricing_location: 'تسعير مخصص',
+          price: Number(pricedDeal.deal_amount),
+          billing_cycle: 'شهرياً',
+          status: isApproved ? 'مشترك بها (معتمدة)' : 'قيد المراجعة والتفاوض',
+          badge: isApproved ? 'باقة معتمدة ومفعلة' : 'باكيدج مخصص',
+          is_approved: isApproved,
+          description: pricedDeal.description && !String(pricedDeal.description).includes('__PLAN_JSON__:') ? pricedDeal.description : '',
+          strategy_goal: '',
+          services: [],
+        };
+      }
+    }
+
     return res.json({
       data: {
         ...contact,
@@ -747,9 +849,15 @@ crmRouter.get('/workspaces/:workspaceId/contacts/:id', async (req: Request, res:
 
 crmRouter.patch('/workspaces/:workspaceId/contacts/:id', async (req: Request<{ workspaceId: string; id: string }>, res: Response) => {
   try {
-    const { client } = getClient(res);
+    const { client, userId } = getClient(res);
     const { workspaceId, id } = req.params;
-    const body = req.body;
+    const body = { ...(req.body || {}) };
+
+    // Extract virtual deal/package fields before updating crm_contacts
+    const rawDealAmount = body.deal_amount;
+    const rawPackageName = body.package_name;
+    delete body.deal_amount;
+    delete body.package_name;
 
     // Do not allow updating workspace_id or created_by
     delete body.workspace_id;
@@ -768,8 +876,15 @@ crmRouter.patch('/workspaces/:workspaceId/contacts/:id', async (req: Request<{ w
       return res.status(400).json({ error: error.message });
     }
 
-    // Auto-promote: If status is 'تم الفوز' or 'عميل', ensure an approved deal exists with plan details and marked 'عميل'
-    if (body.lead_status === 'تم الفوز' || body.lead_status === 'عميل') {
+    // Sync manual package price update & Won/Contract promotion
+    const hasPatchedAmount = rawDealAmount !== undefined && rawDealAmount !== null && String(rawDealAmount).trim() !== '';
+    const patchedAmountVal = hasPatchedAmount ? Number(rawDealAmount) || 0 : undefined;
+    const isConvertingToContract = body.lead_status === 'عقد';
+    const isConvertingToWon = body.lead_status === 'تم الفوز' || body.lead_status === 'عميل';
+    const isConvertingToDeals = isConvertingToContract || isConvertingToWon;
+    const targetWonStage = isConvertingToContract ? 'عقد' : 'عميل';
+
+    if (isConvertingToDeals || hasPatchedAmount) {
       const { data: dealLinks } = await client
         .from('crm_deal_contacts')
         .select('deal_id, crm_deals(*)')
@@ -780,34 +895,70 @@ crmRouter.patch('/workspaces/:workspaceId/contacts/:id', async (req: Request<{ w
           const d = (dl as any).crm_deals;
           if (d) {
             let updatedDesc = d.description || '';
-            let newAmount = d.deal_amount;
-            if (d.description && d.description.includes('__PLAN_JSON__:')) {
+            let newAmount = patchedAmountVal !== undefined ? patchedAmountVal : d.deal_amount;
+            if (isConvertingToDeals && d.description && d.description.includes('__PLAN_JSON__:')) {
               try {
                 const rawPart = d.description.split('__PLAN_JSON__:')[1];
                 const jsonStr = rawPart.includes('\n\n') ? rawPart.split('\n\n')[0] : rawPart;
                 const parsed = JSON.parse(jsonStr.trim());
                 parsed.is_approved = true;
-                parsed.status = 'مشترك بها (معتمدة)';
-                parsed.badge = 'باقة معتمدة ومفعلة';
+                parsed.status = isConvertingToContract ? 'قيد التعاقد (عقد)' : 'مشترك بها (معتمدة)';
+                parsed.badge = isConvertingToContract ? 'عقد قيد التفعيل' : 'باقة معتمدة ومفعلة';
+                if (patchedAmountVal !== undefined) parsed.price = patchedAmountVal;
                 updatedDesc = `__PLAN_JSON__:${JSON.stringify(parsed)}\n\nتم اعتماد وتفعيل الخطة رسمياً للعميل`;
-                if (parsed.price) newAmount = parsed.price;
+                if (patchedAmountVal === undefined && parsed.price) newAmount = parsed.price;
               } catch (e) {}
+            }
+            const updateFields: Record<string, any> = {
+              deal_amount: newAmount,
+              description: updatedDesc,
+              updated_at: new Date().toISOString(),
+            };
+            if (isConvertingToDeals) {
+              updateFields.deal_stage = targetWonStage;
+            }
+            if (rawPackageName && String(rawPackageName).trim()) {
+              updateFields.deal_name = `${String(rawPackageName).trim()} - ${data.full_name}`;
             }
             await client
               .from('crm_deals')
-              .update({
-                deal_stage: 'عميل',
-                deal_amount: newAmount,
-                description: updatedDesc,
-                updated_at: new Date().toISOString(),
-              })
+              .update(updateFields)
               .eq('id', d.id);
           }
         }
+      } else if (isConvertingToDeals || (patchedAmountVal !== undefined && patchedAmountVal > 0)) {
+        const pkgTitle = (rawPackageName && String(rawPackageName).trim())
+          ? `${String(rawPackageName).trim()} - ${data.full_name}`
+          : data.full_name;
+        const { data: newDeal } = await client
+          .from('crm_deals')
+          .insert({
+            workspace_id: workspaceId,
+            deal_name: pkgTitle,
+            deal_stage: isConvertingToDeals ? targetWonStage : 'مكالمة',
+            deal_amount: patchedAmountVal !== undefined ? patchedAmountVal : 0,
+            currency: 'EGP',
+            deal_owner_id: data.contact_owner_id || userId,
+            created_by: userId,
+            company_id: data.company_id || null,
+            description: rawPackageName ? `باكيدج مخصص: ${rawPackageName}` : null,
+          })
+          .select('id')
+          .single();
+
+        if (newDeal) {
+          await client.from('crm_deal_contacts').insert({
+            workspace_id: workspaceId,
+            deal_id: newDeal.id,
+            contact_id: id,
+          });
+        }
       }
 
-      // Automatically classify and add to crm_companies (Clinic, Brand, Company)
-      await ensureCompanyForConvertedClient(client, id, workspaceId);
+      if (isConvertingToDeals) {
+        // Automatically classify and add to crm_companies (Clinic, Brand, Company)
+        await ensureCompanyForConvertedClient(client, id, workspaceId, userId);
+      }
     }
 
     return res.json({ data });
@@ -1294,6 +1445,7 @@ crmRouter.get('/workspaces/:workspaceId/deals', async (req: Request, res: Respon
           contact_id,
           crm_contacts (
             id,
+            lead_id,
             full_name,
             phone_number,
             email
@@ -1344,7 +1496,7 @@ crmRouter.post('/workspaces/:workspaceId/deals', async (req: Request, res: Respo
     const { workspaceId } = req.params;
     const body = req.body;
 
-    // Permissions check: Only Owner, Moderator, or Platform Admin can manually add deals
+    // Permissions check: Owner, Moderator, and Sales (for Leads) can manually add leads/deals
     const { data: statusData } = await client.rpc('crm_internal_user_status');
     const isOwnerOrMod = statusData?.is_owner || statusData?.is_admin || statusData?.internal_role === 'moderator';
 
@@ -1355,22 +1507,29 @@ crmRouter.post('/workspaces/:workspaceId/deals', async (req: Request, res: Respo
       .eq('user_id', userId)
       .maybeSingle();
 
-    const isWsOwner = callerMember?.role === 'owner' || callerMember?.role === 'company_owner' || callerMember?.role === 'moderator';
+    const callerRole = callerMember?.role || statusData?.internal_role || '';
+    const isWsOwnerOrMod = ['owner', 'company_owner', 'brand_owner', 'moderator'].includes(callerRole);
+    const isSalesCaller = callerRole === 'sales' || Boolean(statusData?.is_sales);
+    const requestedStage = String(body.deal_stage || 'مكالمة');
+    const isWonDealStage = ['تم الفوز', 'فوز', 'مكتملة', 'عقد'].includes(requestedStage);
 
-    if (!isOwnerOrMod && !isWsOwner) {
+    if (!isOwnerOrMod && !isWsOwnerOrMod && !(isSalesCaller && !isWonDealStage)) {
       return res.status(403).json({
-        error: 'صلاحية إضافة الصفقات يدوياً مقتصرة على المالك والمودريتور فقط. الصفقات تنشأ تلقائياً عند تحويل الليد إلى عميل.',
+        error: isSalesCaller
+          ? 'يمكن لمسؤول المبيعات إضافة عملاء محتملين (Leads) يدوياً، بينما تُعتمد الصفقات عند تحويل الليد إلى عميل.'
+          : 'صلاحية إضافة الصفقات يدوياً مقتصرة على المالك والمودريتور فقط.',
       });
     }
 
     const dealData = {
       workspace_id: workspaceId,
       deal_name: body.deal_name,
-      deal_stage: body.deal_stage || 'مكالمة',
+      deal_stage: requestedStage,
       deal_amount: body.deal_amount !== undefined ? Number(body.deal_amount) : 0,
       currency: body.currency || 'EGP',
       closing_date: body.closing_date || null,
-      deal_owner_id: body.deal_owner_id || userId,
+      deal_owner_id: isSalesCaller ? userId : (body.deal_owner_id || userId),
+      created_by: userId,
       company_id: body.company_id || null,
       description: body.description || null,
     };
@@ -1492,13 +1651,16 @@ crmRouter.post('/workspaces/:workspaceId/deals/:id/stage', async (req: Request<{
       'فقدان العميل',
     ];
 
-    if (!validStages.includes(stage)) {
+    const isReturnToLead = stage === 'return_to_lead';
+    const effectiveStage = isReturnToLead ? 'مكالمة' : stage;
+
+    if (!isReturnToLead && !validStages.includes(stage)) {
       return res.status(400).json({ error: `Invalid deal stage: ${stage}` });
     }
 
     const { data, error } = await client
       .from('crm_deals')
-      .update({ deal_stage: stage })
+      .update({ deal_stage: effectiveStage })
       .eq('workspace_id', workspaceId)
       .eq('id', id)
       .select()
@@ -1508,19 +1670,20 @@ crmRouter.post('/workspaces/:workspaceId/deals/:id/stage', async (req: Request<{
       return res.status(400).json({ error: error.message });
     }
 
-    // Automatically promote lead to active client if stage is 'عقد' or 'عميل'
-    if (stage === 'عقد' || stage === 'عميل') {
-      const { data: links } = await client
-        .from('crm_deal_contacts')
-        .select('contact_id')
-        .eq('deal_id', id);
+    // Sync linked contact lead_status when promoting to Won/Contract OR returning back to Leads Pipeline
+    const { data: links } = await client
+      .from('crm_deal_contacts')
+      .select('contact_id')
+      .eq('deal_id', id);
 
-      if (links && links.length > 0) {
-        const cids = links.map((l: any) => l.contact_id).filter(Boolean);
+    const cids = (links || []).map((l: any) => l.contact_id).filter(Boolean);
+
+    if (cids.length > 0) {
+      if (effectiveStage === 'عقد' || effectiveStage === 'عميل') {
         await client
           .from('crm_contacts')
           .update({
-            lead_status: 'تم الفوز',
+            lead_status: effectiveStage === 'عقد' ? 'عقد' : 'تم الفوز',
             updated_at: new Date().toISOString(),
           })
           .in('id', cids);
@@ -1529,6 +1692,14 @@ crmRouter.post('/workspaces/:workspaceId/deals/:id/stage', async (req: Request<{
         for (const cid of cids) {
           await ensureCompanyForConvertedClient(client, cid, workspaceId, userId);
         }
+      } else if (isReturnToLead || ['مكالمة', 'زيارة', 'عرض سعر'].includes(effectiveStage)) {
+        await client
+          .from('crm_contacts')
+          .update({
+            lead_status: 'قيد المتابعة',
+            updated_at: new Date().toISOString(),
+          })
+          .in('id', cids);
       }
     }
 

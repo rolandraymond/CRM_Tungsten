@@ -30,7 +30,7 @@ export default function LeadCard({ lead }: { lead: Lead }) {
           {Number.isNaN(date.getTime())
             ? '—'
             : new Intl.DateTimeFormat(
-                i18n.resolvedLanguage === 'ar' ? 'ar-EG' : 'en-GB',
+                i18n.resolvedLanguage === 'ar' ? 'ar-EG-u-nu-latn' : 'en-GB',
                 { dateStyle: 'medium' },
               ).format(date)}
         </time>

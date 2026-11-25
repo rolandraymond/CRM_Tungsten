@@ -44,7 +44,7 @@ function shiftMonth(month: string, amount: number) {
 export default function BookingCalendarLayout(props: Props) {
   const { clinicId, serviceId, doctorId, ready, token, ar, date, onDateChange } = props;
   const [month, setMonth] = useState(() => date.slice(0, 7));
-  const locale = ar ? 'ar-EG' : 'en-GB';
+  const locale = ar ? 'ar-EG-u-nu-latn' : 'en-GB';
   const firstDay = new Date(`${month}-01T12:00:00Z`);
   const blankDays = (firstDay.getUTCDay() + 6) % 7;
   const [year, number] = month.split('-').map(Number);

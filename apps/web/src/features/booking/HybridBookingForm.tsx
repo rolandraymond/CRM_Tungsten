@@ -205,7 +205,7 @@ export default function HybridBookingForm(props: Props) {
   const startTimes = [...new Set(slots.map((slot) => slot.starts_at))];
   const selected = slots.find((slot) => slot.starts_at === selectedStart);
   const formatTime = (value: string) =>
-    new Intl.DateTimeFormat(ar ? 'ar-EG' : 'en-GB', {
+    new Intl.DateTimeFormat(ar ? 'ar-EG-u-nu-latn' : 'en-GB', {
       timeZone: 'Africa/Cairo',
       hour: 'numeric',
       minute: '2-digit',

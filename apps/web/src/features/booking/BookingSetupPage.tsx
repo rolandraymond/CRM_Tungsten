@@ -726,7 +726,7 @@ function Schedules({ data, ...shared }: Shared & { data: Setup }) {
     .filter(matches)
     .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
   const format = (value: string) =>
-    new Intl.DateTimeFormat(shared.ar ? 'ar-EG' : 'en-GB', {
+    new Intl.DateTimeFormat(shared.ar ? 'ar-EG-u-nu-latn' : 'en-GB', {
       timeZone: 'Africa/Cairo',
       dateStyle: 'short',
       timeStyle: 'short',

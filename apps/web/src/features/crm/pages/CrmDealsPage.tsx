@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { useCrm } from '../CrmContext';
+import { useCrmLang } from '../useCrmLang';
 import type { CrmDeal, CrmCompany, CrmContact, WorkspaceMember, DealStage } from '../types';
 import { DEAL_STAGES } from '../types';
 import {
@@ -22,6 +23,7 @@ import {
   Stethoscope,
   Sparkles,
   Building2,
+  Undo2,
 } from 'lucide-react';
 
 function parseDealDescription(rawDescription?: string | null): {
@@ -78,6 +80,7 @@ export default function CrmDealsPage({
   initialMode?: 'leads' | 'deals';
 } = {}) {
   const { activeWorkspace, apiFetch, userRole } = useCrm();
+  const { ar, dir, tr, fmtNum, fmtCurrency, fmtDate, labelDealStage } = useCrmLang();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -114,12 +117,13 @@ export default function CrmDealsPage({
   const isOwner =
     userRole === 'owner' ||
     userRole === 'company_owner' ||
+    userRole === 'brand_owner' ||
     userRole === 'platform_admin';
   const isModerator = (userRole as any) === 'moderator';
   const isSales = userRole === 'sales';
 
-  // Only Owner and Moderator can manually add/create deals! Sales Managers cannot add deals!
-  const canAddDeal = isOwner || isModerator;
+  // Owner & Moderator can add both Leads and Deals; Sales can manually add Leads too!
+  const canAddDeal = isOwner || isModerator || (mode === 'leads' && isSales);
 
   useEffect(() => {
     if (searchParams.get('action') === 'new' && canAddDeal) {
@@ -166,8 +170,29 @@ export default function CrmDealsPage({
     void loadAux();
   }, [loadDeals, loadAux]);
 
-  async function handleSetStage(dealId: string, newStage: DealStage) {
+  async function handleReturnToLead(dealId: string) {
     if (!activeWorkspace) return;
+    if (!window.confirm('هل تريد إرجاع هذا العميل إلى مسار العملاء المحتملين (Leads Pipeline) بحالة "قيد المتابعة"؟')) return;
+    try {
+      await apiFetch(`/api/crm/workspaces/${activeWorkspace.id}/deals/${dealId}/stage`, {
+        method: 'POST',
+        body: JSON.stringify({ stage: 'return_to_lead' }),
+      });
+      if (detailDeal?.id === dealId) setDetailDeal(null);
+      alert('↩ تم إرجاع العميل بنجاح إلى Leads Pipeline (قيد المتابعة).');
+      void loadDeals();
+    } catch (err: any) {
+      alert(`فشل إرجاع العميل لليد: ${err.message}`);
+      void loadDeals();
+    }
+  }
+
+  async function handleSetStage(dealId: string, newStage: DealStage | '__return_to_lead__') {
+    if (!activeWorkspace) return;
+    if (newStage === '__return_to_lead__') {
+      await handleReturnToLead(dealId);
+      return;
+    }
     try {
       // optimistic update
       setDeals((prev) =>
@@ -232,7 +257,7 @@ export default function CrmDealsPage({
   }
 
   const LEADS_STAGES: DealStage[] = ['مكالمة', 'زيارة', 'عرض سعر', 'خسارة مغلقة', 'غير مؤهل'];
-  const DEALS_STAGES: DealStage[] = ['عقد', 'عميل', 'خسارة مغلقة', 'فقدان العميل'];
+  const DEALS_STAGES: DealStage[] = ['عقد', 'عميل', 'فقدان العميل'];
 
   const displayedStages = mode === 'leads' ? LEADS_STAGES : DEALS_STAGES;
 
@@ -275,68 +300,36 @@ export default function CrmDealsPage({
   const totalValue = filteredDeals.reduce((sum, d) => sum + (Number(d.deal_amount) || 0), 0);
 
   return (
-    <div className="space-y-4">
-      {/* Top Level Mode Tabs: Leads Pipeline vs Won Deals */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-surface p-3 shadow-sm">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              setMode('leads');
-              setSelectedStage('all');
-              navigate('/crm/leads');
-            }}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
-              mode === 'leads'
-                ? 'bg-amber-500 text-white shadow-md'
-                : 'border border-line bg-surface/60 text-muted hover:text-ink hover:bg-surface'
-            }`}
-          >
-            <UserCheck className="h-4 w-4" />
-            <span>مسار العملاء المحتملين (Leads Pipeline)</span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-bold ${
-                mode === 'leads' ? 'bg-white/25 text-white' : 'bg-black/10 text-ink'
-              }`}
-            >
-              {deals.filter((d) => d.deal_stage !== 'عقد' && d.deal_stage !== 'عميل').length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => {
-              setMode('deals');
-              setSelectedStage('all');
-              navigate('/crm/deals');
-            }}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition ${
-              mode === 'deals'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'border border-line bg-surface/60 text-muted hover:text-ink hover:bg-surface'
-            }`}
-          >
-            <Award className="h-4 w-4" />
-            <span>الصفقات المعتمدة والعقود (Won Deals)</span>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[10px] font-mono font-bold ${
-                mode === 'deals' ? 'bg-white/25 text-white' : 'bg-black/10 text-ink'
-              }`}
-            >
-              {deals.filter((d) => d.deal_stage === 'عقد' || d.deal_stage === 'عميل').length}
-            </span>
-          </button>
+    <div className="space-y-4" dir={dir}>
+      {/* Top Level Won Deals Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-500/20 bg-surface p-3.5 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+            <Award className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+              <span>{tr('الصفقات المعتمدة والعقود (Won Deals)', 'Won Deals & Contracts')}</span>
+              <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-mono font-bold text-emerald-700">
+                {fmtNum(modeDeals.length)}
+              </span>
+            </h2>
+            <p className="text-[11px] text-muted">
+              {tr(
+                'العملاء المحوّلون لمرحلة العقد أو الفوز مع وصول مباشر لبروفايل كل عميل',
+                'Converted clients in Contract or Active status with direct access to each client profile'
+              )}
+            </p>
+          </div>
         </div>
 
-        {mode === 'leads' ? (
-          <div className="flex items-center gap-1.5 text-xs text-muted">
-            <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-            <span>متابعة وتأهيل العملاء حتى مرحلة التعاقد</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 text-xs text-muted">
-            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
-            <span>الصفقات المؤكدة والعملاء الفعليين المسجلين</span>
-          </div>
-        )}
+        <button
+          onClick={() => navigate('/crm/contacts')}
+          className="flex items-center gap-1.5 rounded-xl border border-line bg-surface/60 px-3.5 py-2 text-xs font-bold text-muted hover:text-ink hover:bg-surface transition"
+        >
+          <UserCheck className="h-4 w-4 text-amber-500" />
+          <span>{tr('العودة إلى Leads Pipeline', 'Back to Leads Pipeline')}</span>
+        </button>
       </div>
 
       {/* Top Bar: Search, View Mode Switcher, and Add Button */}
@@ -344,11 +337,13 @@ export default function CrmDealsPage({
         <div>
           <h2 className="text-sm font-bold text-ink">
             {mode === 'leads'
-              ? 'مسار تأهيل العملاء المحتملين (Leads Pipeline)'
-              : 'الصفقات المعتمدة والعقود المكتملة (Won Deals)'}
+              ? tr('مسار تأهيل العملاء المحتملين (Leads Pipeline)', 'Leads Pipeline')
+              : tr('الصفقات المعتمدة والعقود المكتملة (Won Deals)', 'Confirmed Won Deals & Contracts')}
           </h2>
           <p className="text-xs text-muted">
-            إجمالي {filteredDeals.length} {mode === 'leads' ? 'عميل محتمل' : 'صفقة معتمدة'} بقيمة {totalValue.toLocaleString('ar-EG')} ج.م
+            {ar
+              ? `إجمالي ${fmtNum(filteredDeals.length)} ${mode === 'leads' ? 'عميل محتمل' : 'صفقة معتمدة'} بقيمة ${fmtCurrency(totalValue)}`
+              : `Total ${fmtNum(filteredDeals.length)} ${mode === 'leads' ? 'leads' : 'won deals'} worth ${fmtCurrency(totalValue)}`}
           </p>
         </div>
 
@@ -364,7 +359,7 @@ export default function CrmDealsPage({
               }`}
             >
               <LayoutGrid className="h-3.5 w-3.5" />
-              <span>عرض البطاقات</span>
+              <span>{tr('عرض البطاقات', 'Cards View')}</span>
             </button>
             <button
               onClick={() => setViewMode('table')}
@@ -375,25 +370,25 @@ export default function CrmDealsPage({
               }`}
             >
               <TableIcon className="h-3.5 w-3.5" />
-              <span>عرض الجدول</span>
+              <span>{tr('عرض الجدول', 'Table View')}</span>
             </button>
           </div>
 
           {/* Search Box */}
           <div className="relative min-w-[200px]">
-            <Search className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <Search className={`absolute ${ar ? 'right-3' : 'left-3'} top-1/2 h-4 w-4 -translate-y-1/2 text-muted`} />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="بحث بالصفقة، العميل، الشركة..."
-              className="w-full rounded-xl border border-line bg-surface/50 py-1.5 pr-9 pl-3 text-xs outline-none transition focus:border-amber-500"
+              placeholder={tr('بحث بالصفقة، العميل، الشركة...', 'Search deal, client, company...')}
+              className={`w-full rounded-xl border border-line bg-surface/50 py-1.5 ${ar ? 'pr-9 pl-3' : 'pl-9 pr-3'} text-xs outline-none transition focus:border-amber-500`}
             />
           </div>
 
           {isSales && (
             <span className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-1.5 text-xs font-bold text-blue-600 shadow-sm">
-              المخصصة لك فقط ({modeDeals.length})
+              {tr(`المخصصة لك فقط (${fmtNum(modeDeals.length)})`, `Assigned to you (${fmtNum(modeDeals.length)})`)}
             </span>
           )}
 
@@ -405,7 +400,7 @@ export default function CrmDealsPage({
               }`}
             >
               <Plus className="h-4 w-4" />
-              <span>{mode === 'leads' ? 'إضافة عميل محتمل (Lead)' : 'إضافة صفقة معتمدة'}</span>
+              <span>{mode === 'leads' ? tr('إضافة عميل محتمل (Lead)', 'Add Lead') : tr('إضافة صفقة معتمدة', 'Add Won Deal')}</span>
             </button>
           )}
         </div>
@@ -413,8 +408,8 @@ export default function CrmDealsPage({
 
       {/* Top Filter Bar: Client Status / Stage Filter Pills */}
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface p-3 shadow-sm">
-        <span className="text-xs font-bold text-muted ml-2">
-          {mode === 'leads' ? 'مراحل التأهيل والمتابعة:' : 'مراحل الصفقات والعملاء:'}
+        <span className="text-xs font-bold text-muted mx-1">
+          {mode === 'leads' ? tr('مراحل التأهيل والمتابعة:', 'Lead Stages:') : tr('مراحل الصفقات والعملاء:', 'Deal Stages:')}
         </span>
         <button
           onClick={() => setSelectedStage('all')}
@@ -424,7 +419,7 @@ export default function CrmDealsPage({
               : 'text-muted hover:bg-surface/80 hover:text-ink border border-line/60'
           }`}
         >
-          الكل ({modeDeals.length})
+          {tr(`الكل (${fmtNum(modeDeals.length)})`, `All (${fmtNum(modeDeals.length)})`)}
         </button>
 
         {displayedStages.map((st) => {
@@ -440,13 +435,13 @@ export default function CrmDealsPage({
                   : `${stageBadgeColor[st]} hover:opacity-85`
               }`}
             >
-              <span>{st}</span>
+              <span>{labelDealStage(st)}</span>
               <span
-                className={`rounded-full px-1.5 py-0.2 text-[10px] font-black ${
+                className={`rounded-full px-1.5 py-0.2 text-[10px] font-black font-mono ${
                   isSelected ? 'bg-white/25 text-white' : 'bg-black/10 text-ink'
                 }`}
               >
-                {count}
+                {fmtNum(count)}
               </span>
             </button>
           );
@@ -457,11 +452,11 @@ export default function CrmDealsPage({
       {loading ? (
         <div className="py-20 text-center text-xs text-muted">
           <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-amber-500 border-t-transparent mb-2" />
-          <div>جاري تحميل الصفقات...</div>
+          <div>{tr('جاري تحميل الصفقات...', 'Loading deals...')}</div>
         </div>
       ) : filteredDeals.length === 0 ? (
         <div className="rounded-2xl border border-line bg-surface p-12 text-center text-xs text-muted shadow-sm">
-          لا توجد صفقات تطابق معايير البحث أو الفلتر المحدد
+          {tr('لا توجد صفقات تطابق معايير البحث أو الفلتر المحدد', 'No deals match your search or filter criteria')}
         </div>
       ) : viewMode === 'cards' ? (
         /* RESPONSIVE CARDS VIEW (Clean, Vertical Scrolling) */
@@ -481,23 +476,30 @@ export default function CrmDealsPage({
                     {deal.deal_name}
                   </h3>
                   <span className="font-black text-amber-500 text-sm whitespace-nowrap font-mono">
-                    {Number(deal.deal_amount).toLocaleString('ar-EG')} ج.م
+                    {Number(deal.deal_amount) > 0
+                      ? fmtCurrency(deal.deal_amount)
+                      : <span className="text-muted font-sans font-normal text-[11px]">{tr('لم يحدد أي باكيدج', 'No package set')}</span>}
                   </span>
                 </div>
 
                 {/* Quick Stage Selector Dropdown */}
                 <div className="mt-3 flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-medium text-muted">حالة الصفقة:</span>
+                  <span className="text-[11px] font-medium text-muted">{tr('حالة الصفقة:', 'Deal Stage:')}</span>
                   <select
                     value={deal.deal_stage}
-                    onChange={(e) => handleSetStage(deal.id, e.target.value as DealStage)}
+                    onChange={(e) => handleSetStage(deal.id, e.target.value as DealStage | '__return_to_lead__')}
                     className={`rounded-lg border px-2.5 py-1 text-xs font-bold outline-none cursor-pointer ${stageBadgeColor[deal.deal_stage]}`}
                   >
-                    {DEAL_STAGES.map((st) => (
+                    {(mode === 'deals' ? DEALS_STAGES : DEAL_STAGES).map((st) => (
                       <option key={st} value={st} className="bg-surface text-ink">
-                        {st}
+                        {labelDealStage(st)}
                       </option>
                     ))}
+                    {mode === 'deals' && (
+                      <option value="__return_to_lead__" className="bg-surface text-amber-600 font-bold">
+                        {tr('↩ إرجاع لليد (Leads Pipeline)', '↩ Return to Leads Pipeline')}
+                      </option>
+                    )}
                   </select>
                 </div>
 
@@ -538,7 +540,7 @@ export default function CrmDealsPage({
                   {deal.closing_date && (
                     <div className="flex items-center gap-1.5 text-[11px]">
                       <Calendar className="h-3 w-3 text-muted shrink-0" />
-                      <span>تاريخ الإغلاق: {new Date(deal.closing_date).toLocaleDateString('ar-EG')}</span>
+                      <span>{tr('تاريخ الإغلاق:', 'Close Date:')} <span className="font-mono">{fmtDate(deal.closing_date)}</span></span>
                     </div>
                   )}
                 </div>
@@ -546,19 +548,40 @@ export default function CrmDealsPage({
 
               {/* Card Actions Footer */}
               <div className="mt-4 flex items-center justify-between border-t border-line/60 pt-2.5 text-xs">
-                <button
-                  onClick={() => openDetail(deal.id)}
-                  className="flex items-center gap-1 text-muted hover:text-ink font-medium"
-                >
-                  <Eye className="h-3.5 w-3.5" />
-                  <span>التفاصيل</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {deal.contacts?.[0]?.id && (
+                    <button
+                      onClick={() => navigate(`/crm/contacts/${deal.contacts![0].id}`)}
+                      className="flex items-center gap-1 rounded-lg bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-amber-700 hover:bg-amber-500/20 font-bold transition"
+                      title={tr('فتح البروفايل الكامل للعميل', 'Open full client profile')}
+                    >
+                      <User className="h-3.5 w-3.5" />
+                      <span>{tr('البروفايل', 'Profile')}</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => openDetail(deal.id)}
+                    className="flex items-center gap-1 text-muted hover:text-ink font-medium"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    <span>{tr('الصفقة', 'Deal')}</span>
+                  </button>
+                </div>
 
                 <div className="flex items-center gap-1">
+                  {mode === 'deals' && (
+                    <button
+                      onClick={() => void handleReturnToLead(deal.id)}
+                      className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-500/10 transition"
+                      title={tr('إرجاع لليد (Leads Pipeline)', 'Return to Leads Pipeline')}
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                   <button
                     onClick={() => setEditingDeal(deal)}
                     className="rounded-lg p-1.5 text-muted hover:bg-surface/80 hover:text-amber-500 transition"
-                    title="تعديل"
+                    title={tr('تعديل', 'Edit')}
                   >
                     <Edit2 className="h-3.5 w-3.5" />
                   </button>
@@ -570,7 +593,7 @@ export default function CrmDealsPage({
                         setNewOwnerId(deal.deal_owner_id || '');
                       }}
                       className="rounded-lg p-1.5 text-muted hover:bg-surface/80 hover:text-blue-500 transition"
-                      title="نقل الملكية"
+                      title={tr('نقل الملكية', 'Transfer Ownership')}
                     >
                       <ArrowRightLeft className="h-3.5 w-3.5" />
                     </button>
@@ -579,7 +602,7 @@ export default function CrmDealsPage({
                   <button
                     onClick={() => handleDelete(deal.id)}
                     className="rounded-lg p-1.5 text-muted hover:bg-surface/80 hover:text-rose-500 transition"
-                    title="حذف"
+                    title={tr('حذف', 'Delete')}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -591,16 +614,16 @@ export default function CrmDealsPage({
       ) : (
         /* TABLE VIEW (Vertical Scrolling) */
         <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-sm">
-          <table className="w-full text-right text-xs">
+          <table className={`w-full ${ar ? 'text-right' : 'text-left'} text-xs`}>
             <thead className="border-b border-line bg-surface/70 text-muted">
               <tr>
-                <th className="px-4 py-3 font-semibold">اسم الصفقة</th>
-                <th className="px-4 py-3 font-semibold">حالة العميل / المرحلة</th>
-                <th className="px-4 py-3 font-semibold">القيمة (ج.م)</th>
-                <th className="px-4 py-3 font-semibold">الشركة المرتبطة</th>
-                <th className="px-4 py-3 font-semibold">جهات الاتصال</th>
-                <th className="px-4 py-3 font-semibold">تاريخ الإغلاق</th>
-                <th className="px-4 py-3 font-semibold text-center">إجراءات</th>
+                <th className="px-4 py-3 font-semibold">{tr('اسم الصفقة', 'Deal Name')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('حالة العميل / المرحلة', 'Stage')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('القيمة (ج.م)', 'Amount (EGP)')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('الشركة المرتبطة', 'Company / Entity')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('جهات الاتصال', 'Client / Contact')}</th>
+                <th className="px-4 py-3 font-semibold">{tr('تاريخ الإغلاق', 'Closing Date')}</th>
+                <th className="px-4 py-3 font-semibold text-center">{tr('إجراءات', 'Actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line/60">
@@ -610,55 +633,103 @@ export default function CrmDealsPage({
                     className="px-4 py-3 font-bold text-ink cursor-pointer hover:text-amber-500"
                     onClick={() => openDetail(deal.id)}
                   >
-                    {deal.deal_name}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span>{deal.deal_name}</span>
+                      {deal.contacts?.[0]?.lead_id && (
+                        <span className="rounded bg-surface border border-line px-1.5 py-0.5 text-[10px] font-mono text-muted">
+                          {deal.contacts[0].lead_id}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <select
                       value={deal.deal_stage}
-                      onChange={(e) => handleSetStage(deal.id, e.target.value as DealStage)}
+                      onChange={(e) => handleSetStage(deal.id, e.target.value as DealStage | '__return_to_lead__')}
                       className={`rounded-lg border px-2 py-1 text-[11px] font-bold outline-none cursor-pointer ${stageBadgeColor[deal.deal_stage]}`}
                     >
-                      {DEAL_STAGES.map((st) => (
+                      {(mode === 'deals' ? DEALS_STAGES : DEAL_STAGES).map((st) => (
                         <option key={st} value={st} className="bg-surface text-ink">
-                          {st}
+                          {labelDealStage(st)}
                         </option>
                       ))}
+                      {mode === 'deals' && (
+                        <option value="__return_to_lead__" className="bg-surface text-amber-600 font-bold">
+                          {tr('↩ إرجاع لليد (Leads Pipeline)', '↩ Return to Leads Pipeline')}
+                        </option>
+                      )}
                     </select>
                   </td>
                   <td className="px-4 py-3 font-bold font-mono text-amber-500">
-                    {Number(deal.deal_amount).toLocaleString('ar-EG')} ج.م
+                    {Number(deal.deal_amount) > 0
+                      ? fmtCurrency(deal.deal_amount)
+                      : <span className="text-muted font-sans font-normal text-[11px]">{tr('لم يحدد أي باكيدج', 'No package set')}</span>}
                   </td>
                   <td className="px-4 py-3 text-muted">{deal.company_name || '—'}</td>
                   <td className="px-4 py-3 text-muted">
-                    {deal.contacts && deal.contacts.length > 0
-                      ? deal.contacts.map((c) => c.full_name).join(', ')
-                      : '—'}
+                    {deal.contacts && deal.contacts.length > 0 ? (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {deal.contacts.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => navigate(`/crm/contacts/${c.id}`)}
+                            className={`font-bold text-ink hover:text-amber-600 hover:underline transition ${ar ? 'text-right' : 'text-left'}`}
+                            title={tr('فتح البروفايل الكامل للعميل', 'Open full client profile')}
+                          >
+                            {c.lead_id ? `${c.full_name} (${c.lead_id})` : c.full_name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      '—'
+                    )}
                   </td>
-                  <td className="px-4 py-3 text-muted">
-                    {deal.closing_date ? new Date(deal.closing_date).toLocaleDateString('ar-EG') : '—'}
+                  <td className="px-4 py-3 text-muted font-mono">
+                    {fmtDate(deal.closing_date)}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <div className="flex items-center justify-center gap-1">
-                      {deal.deal_stage !== 'عقد' && deal.deal_stage !== 'عميل' && (
+                      {deal.contacts?.[0]?.id && (
+                        <button
+                          onClick={() => navigate(`/crm/contacts/${deal.contacts![0].id}`)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-amber-500/10 border border-amber-500/30 px-2 py-1 text-[11px] font-bold text-amber-700 hover:bg-amber-500/20 transition"
+                          title={tr('فتح بروفايل العميل الكامل', 'Open full client profile')}
+                        >
+                          <User className="h-3.5 w-3.5" />
+                          <span>{tr('البروفايل', 'Profile')}</span>
+                        </button>
+                      )}
+                      {deal.deal_stage === 'عقد' && (
                         <button
                           onClick={() => handleSetStage(deal.id, 'عميل')}
                           className="rounded-lg p-1.5 text-emerald-600 hover:bg-emerald-500/10 transition"
-                          title="اعتماد كعميل رسمي (تحويل للديلز)"
+                          title={tr('تفعيل كعميل نشط (عميل)', 'Activate as Active Client')}
                         >
                           <CheckCircle2 className="h-4 w-4" />
+                        </button>
+                      )}
+                      {mode === 'deals' && (
+                        <button
+                          onClick={() => void handleReturnToLead(deal.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface/70 px-2 py-1 text-[11px] font-bold text-muted hover:border-amber-500/40 hover:text-amber-600 transition"
+                          title={tr('إرجاع لليد (Leads Pipeline)', 'Return to Leads Pipeline')}
+                        >
+                          <Undo2 className="h-3.5 w-3.5" />
+                          <span>{tr('إرجاع لليد', 'Return to Lead')}</span>
                         </button>
                       )}
                       <button
                         onClick={() => openDetail(deal.id)}
                         className="rounded-lg p-1.5 text-muted hover:bg-surface/80 hover:text-ink transition"
-                        title="عرض التفاصيل"
+                        title={tr('عرض التفاصيل', 'View Details')}
                       >
                         <Eye className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => setEditingDeal(deal)}
                         className="rounded-lg p-1.5 text-muted hover:bg-surface/80 hover:text-amber-500 transition"
-                        title="تعديل"
+                        title={tr('تعديل', 'Edit')}
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
@@ -770,12 +841,12 @@ export default function CrmDealsPage({
       {/* Detail Drawer */}
       {detailDeal && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
-          <div className="h-full w-full max-w-2xl overflow-y-auto border-s border-line bg-surface p-6 shadow-2xl" dir="rtl">
+          <div className="h-full w-full max-w-2xl overflow-y-auto border-s border-line bg-surface p-6 shadow-2xl" dir={dir}>
             <div className="flex items-center justify-between border-b border-line pb-4">
               <div>
                 <h3 className="text-base font-bold text-ink">{detailDeal.deal_name}</h3>
                 <span className={`mt-1 inline-block rounded-md border px-2 py-0.5 text-xs font-bold ${stageBadgeColor[detailDeal.deal_stage]}`}>
-                  {detailDeal.deal_stage}
+                  {labelDealStage(detailDeal.deal_stage)}
                 </span>
               </div>
               <button onClick={() => setDetailDeal(null)} className="rounded-lg p-2 text-muted hover:bg-surface/80">
@@ -786,23 +857,25 @@ export default function CrmDealsPage({
             <div className="mt-6 space-y-6 text-xs">
               <div className="grid grid-cols-2 gap-4 rounded-xl border border-line/60 bg-surface/30 p-4">
                 <div>
-                  <span className="text-muted">قيمة الصفقة:</span>
-                  <div className="font-black text-amber-500 text-base mt-0.5">
-                    {Number(detailDeal.deal_amount).toLocaleString('ar-EG')} ج.م
+                  <span className="text-muted">{tr('قيمة الصفقة:', 'Deal Value:')}</span>
+                  <div className="font-mono font-black text-amber-500 text-base mt-0.5">
+                    {Number(detailDeal.deal_amount || 0) > 0
+                      ? fmtCurrency(Number(detailDeal.deal_amount))
+                      : tr('لم يحدد أي باكيدج', 'No package set')}
                   </div>
                 </div>
                 <div>
-                  <span className="text-muted">الشركة:</span>
+                  <span className="text-muted">{tr('الشركة:', 'Company:')}</span>
                   <div className="font-bold text-ink mt-0.5">{detailDeal.company_name || '—'}</div>
                 </div>
                 <div>
-                  <span className="text-muted">تاريخ الإغلاق المتوقع:</span>
-                  <div className="font-bold text-ink mt-0.5">
-                    {detailDeal.closing_date ? new Date(detailDeal.closing_date).toLocaleDateString('ar-EG') : '—'}
+                  <span className="text-muted">{tr('تاريخ الإغلاق المتوقع:', 'Closing Date:')}</span>
+                  <div className="font-mono font-bold text-ink mt-0.5">
+                    {detailDeal.closing_date ? fmtDate(detailDeal.closing_date) : '—'}
                   </div>
                 </div>
                 <div className="col-span-2 pt-2 border-t border-line/60">
-                  <span className="text-muted font-bold block mb-2">الوصف ومخرجات الخطة والملاحظات:</span>
+                  <span className="text-muted font-bold block mb-2">{tr('الوصف ومخرجات الخطة والملاحظات:', 'Plan Deliverables & Notes:')}</span>
                   {(() => {
                     const { plan, cleanNotes } = parseDealDescription(detailDeal.description);
                     return (
@@ -812,7 +885,7 @@ export default function CrmDealsPage({
                             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-500/20 pb-2.5">
                               <div>
                                 <div className="flex items-center gap-2">
-                                  <span className="font-bold text-sm text-ink">{plan.plan_name || 'الباقة المخصصة'}</span>
+                                  <span className="font-bold text-sm text-ink">{plan.plan_name || tr('الباقة المخصصة', 'Custom Package')}</span>
                                   {plan.badge && (
                                     <span className="rounded-full bg-amber-500/20 text-amber-600 px-2.5 py-0.5 text-[10px] font-bold">
                                       {plan.badge}
@@ -820,15 +893,15 @@ export default function CrmDealsPage({
                                   )}
                                 </div>
                                 <div className="text-[11px] text-muted mt-0.5">
-                                  {plan.pricing_location || 'تسعير القاهرة'} • الدورة: {plan.billing_cycle || 'شهرياً'}
+                                  {plan.pricing_location || tr('تسعير القاهرة', 'Cairo Pricing')} • {tr('الدورة:', 'Cycle:')} {plan.billing_cycle || tr('شهرياً', 'Monthly')}
                                 </div>
                               </div>
                               <div className="text-left font-mono">
                                 <span className="text-base font-black text-amber-500">
-                                  {Number(plan.price || detailDeal.deal_amount).toLocaleString('ar-EG')} ج.م
+                                  {fmtCurrency(Number(plan.price || detailDeal.deal_amount || 0))}
                                 </span>
                                 <span className="text-[10px] text-muted block font-sans">
-                                  {plan.status || (plan.is_approved ? 'مشترك بها (معتمدة)' : 'قيد المراجعة')}
+                                  {plan.status || (plan.is_approved ? tr('مشترك بها (معتمدة)', 'Approved') : tr('قيد المراجعة', 'Pending Review'))}
                                 </span>
                               </div>
                             </div>
@@ -843,7 +916,7 @@ export default function CrmDealsPage({
                               <div className="rounded-lg bg-surface/80 border border-line/60 p-2.5 text-xs text-ink flex items-start gap-2">
                                 <span className="text-sm">🎯</span>
                                 <div className="leading-relaxed">
-                                  <span className="font-bold text-amber-600 block mb-0.5">الهدف الاستراتيجي:</span>
+                                  <span className="font-bold text-amber-600 block mb-0.5">{tr('الهدف الاستراتيجي:', 'Strategic Goal:')}</span>
                                   <span>{plan.strategy_goal}</span>
                                 </div>
                               </div>
@@ -852,7 +925,7 @@ export default function CrmDealsPage({
                             {/* Services breakdown list */}
                             {plan.services && Array.isArray(plan.services) && plan.services.length > 0 && (
                               <div>
-                                <span className="block font-bold text-[11px] text-muted mb-2">مخرجات وخدمات الخطة:</span>
+                                <span className="block font-bold text-[11px] text-muted mb-2">{tr('مخرجات وخدمات الخطة:', 'Plan Services & Deliverables:')}</span>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                   {plan.services.map((s: any, idx: number) => (
                                     <div key={s.id || idx} className="rounded-lg border border-line bg-surface p-2.5 flex items-start justify-between gap-2">
@@ -864,7 +937,7 @@ export default function CrmDealsPage({
                                       </div>
                                       <div className="text-left whitespace-nowrap">
                                         <span className="text-[10px] font-mono font-bold text-amber-600">
-                                          {s.quantity ? `${s.quantity}x` : ''} {Number(s.total_price || s.unit_price || 0).toLocaleString('ar-EG')} ج.م
+                                          {s.quantity ? `${s.quantity}x ` : ''}{fmtCurrency(Number(s.total_price || s.unit_price || 0))}
                                         </span>
                                       </div>
                                     </div>
@@ -877,11 +950,11 @@ export default function CrmDealsPage({
 
                         {cleanNotes ? (
                           <div className="rounded-xl border border-line/60 bg-surface/50 p-3">
-                            <span className="text-muted block text-[11px] font-bold mb-1">ملاحظات إضافية:</span>
+                            <span className="text-muted block text-[11px] font-bold mb-1">{tr('ملاحظات إضافية:', 'Additional Notes:')}</span>
                             <p className="text-ink text-xs leading-relaxed whitespace-pre-wrap">{cleanNotes}</p>
                           </div>
                         ) : !plan ? (
-                          <div className="text-muted">لا توجد ملاحظات إضافية</div>
+                          <div className="text-muted">{tr('لا توجد ملاحظات إضافية', 'No additional notes')}</div>
                         ) : null}
                       </div>
                     );
@@ -957,7 +1030,7 @@ function DealFormModal({
   contacts: CrmContact[];
   members: WorkspaceMember[];
 }) {
-  const { activeWorkspace, apiFetch } = useCrm();
+  const { activeWorkspace, apiFetch, userRole } = useCrm();
 
   const [dealName, setDealName] = useState(deal?.deal_name || '');
   const [dealStage, setDealStage] = useState<DealStage>(
@@ -1167,7 +1240,12 @@ function DealFormModal({
                 onChange={(e) => setDealStage(e.target.value as DealStage)}
                 className="w-full rounded-xl border border-line bg-surface p-2.5 text-ink font-bold text-amber-500"
               >
-                {DEAL_STAGES.map((st) => (
+                {(mode === 'deals'
+                  ? (['عقد', 'عميل', 'فقدان العميل'] as DealStage[])
+                  : userRole === 'sales'
+                  ? DEAL_STAGES.filter((st) => !['تم الفوز', 'فوز', 'مكتملة', 'عقد'].includes(st))
+                  : DEAL_STAGES
+                ).map((st) => (
                   <option key={st} value={st}>
                     {st}
                   </option>
@@ -1250,22 +1328,24 @@ function DealFormModal({
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block font-medium text-muted mb-1">مسؤول المبيعات (Deal Owner)</label>
-              <select
-                value={ownerId}
-                onChange={(e) => setOwnerId(e.target.value)}
-                className="w-full rounded-xl border border-line bg-surface p-2.5 text-ink"
-              >
-                <option value="">-- اختياري (تلقائي الحساب الحالي) --</option>
-                {members.map((m) => (
-                  <option key={m.user_id} value={m.user_id}>
-                    {m.full_name} ({m.role})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
+            {userRole !== 'sales' && (
+              <div>
+                <label className="block font-medium text-muted mb-1">مسؤول المبيعات (Deal Owner)</label>
+                <select
+                  value={ownerId}
+                  onChange={(e) => setOwnerId(e.target.value)}
+                  className="w-full rounded-xl border border-line bg-surface p-2.5 text-ink"
+                >
+                  <option value="">-- اختياري (تلقائي الحساب الحالي) --</option>
+                  {members.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.full_name} ({m.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className={userRole === 'sales' ? 'sm:col-span-2' : ''}>
               <label className="block font-medium text-muted mb-1">ملاحظات إضافية</label>
               <textarea
                 rows={2}

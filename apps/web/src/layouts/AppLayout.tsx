@@ -20,6 +20,7 @@ import {
   Lock,
   UserCheck,
   Award,
+  Sparkles,
 } from 'lucide-react';
 
 import { authClient } from '../lib/auth-client';
@@ -68,6 +69,9 @@ export default function AppLayout({
     is_company_owner?: boolean;
     is_company_manager?: boolean;
     is_client_company?: boolean;
+    is_brand_owner?: boolean;
+    is_brand_manager?: boolean;
+    is_client_brand?: boolean;
     is_clinic_user?: boolean;
     clinic_name?: string | null;
     clinic_role?: string | null;
@@ -79,7 +83,31 @@ export default function AppLayout({
     userRole: crmUserRole,
   } = useCrm();
 
-  const effectiveClinicUser = Boolean(
+  const isClientBrand = Boolean(
+    activeWorkspace?.workspace_type === 'client_brand' ||
+    activeWorkspace?.workspace_type === 'brand' ||
+    adminStatus.data?.is_client_brand ||
+    adminStatus.data?.is_brand_owner ||
+    adminStatus.data?.is_brand_manager ||
+    crmUserRole === 'brand_owner' ||
+    crmUserRole === 'brand_manager' ||
+    crmUserRole === 'content_creator' ||
+    crmUserRole === 'videographer_editor'
+  );
+
+  const isBrandOwner = Boolean(
+    adminStatus.data?.is_brand_owner ||
+    crmUserRole === 'brand_owner' ||
+    (crmUserRole === 'owner' && isClientBrand)
+  );
+
+  const isBrandManager = Boolean(
+    adminStatus.data?.is_brand_manager ||
+    crmUserRole === 'brand_manager' ||
+    (crmUserRole === 'manager' && isClientBrand)
+  );
+
+  const effectiveClinicUser = !isClientBrand && Boolean(
     isClinicUser ||
     adminStatus.data?.is_clinic_user ||
     (adminStatus.data &&
@@ -89,42 +117,46 @@ export default function AppLayout({
      !adminStatus.data.is_sales &&
      !adminStatus.data.is_company_owner &&
      !adminStatus.data.is_company_manager &&
-     !adminStatus.data.is_client_company)
+     !adminStatus.data.is_client_company &&
+     !adminStatus.data.is_client_brand &&
+     !adminStatus.data.is_brand_owner &&
+     !adminStatus.data.is_brand_manager &&
+     adminStatus.data.clinic_name)
   );
 
   const isPlatformAdmin = !effectiveClinicUser && Boolean(adminStatus.data?.is_admin);
-  const isCompanyOwner = !effectiveClinicUser && Boolean(
+  const isCompanyOwner = !effectiveClinicUser && !isClientBrand && Boolean(
     adminStatus.data?.is_company_owner ||
     crmUserRole === 'company_owner' ||
     (crmUserRole === 'owner' && activeWorkspace?.workspace_type === 'client_company')
   );
-  const isCompanyManager = !effectiveClinicUser && Boolean(
+  const isCompanyManager = !effectiveClinicUser && !isClientBrand && Boolean(
     adminStatus.data?.is_company_manager ||
     crmUserRole === 'company_manager' ||
     (crmUserRole === 'manager' && activeWorkspace?.workspace_type === 'client_company')
   );
-  const isTungstenOwner = !effectiveClinicUser && Boolean(
+  const isTungstenOwner = !effectiveClinicUser && !isClientBrand && !isCompanyOwner && Boolean(
     (adminStatus.data?.is_owner || adminStatus.data?.is_admin || isAdmin) &&
-    !isCompanyOwner &&
-    activeWorkspace?.workspace_type !== 'client_company'
+    activeWorkspace?.workspace_type !== 'client_company' &&
+    activeWorkspace?.workspace_type !== 'client_brand'
   );
-  const isTungstenManager = !effectiveClinicUser && Boolean(
+  const isTungstenManager = !effectiveClinicUser && !isClientBrand && !isCompanyManager && Boolean(
     adminStatus.data?.is_manager &&
-    !isCompanyManager &&
-    activeWorkspace?.workspace_type !== 'client_company'
+    activeWorkspace?.workspace_type !== 'client_company' &&
+    activeWorkspace?.workspace_type !== 'client_brand'
   );
   const isSales = !effectiveClinicUser && Boolean(adminStatus.data?.is_sales || crmUserRole === 'sales');
 
-  const isClientCompany = !effectiveClinicUser && Boolean(
+  const isClientCompany = !effectiveClinicUser && !isClientBrand && Boolean(
     activeWorkspace?.workspace_type === 'client_company' ||
     adminStatus.data?.is_client_company ||
     isCompanyOwner ||
     isCompanyManager
   );
 
-  const isOwner = !effectiveClinicUser && (isPlatformAdmin || isTungstenOwner || isCompanyOwner);
-  const isManager = !effectiveClinicUser && (isTungstenManager || isCompanyManager);
-  const isCrmUser = !effectiveClinicUser && (isOwner || isManager || isSales || Boolean(crmUserRole));
+  const isOwner = !effectiveClinicUser && (isPlatformAdmin || isTungstenOwner || isCompanyOwner || isBrandOwner);
+  const isManager = !effectiveClinicUser && (isTungstenManager || isCompanyManager || isBrandManager);
+  const isCrmUser = !effectiveClinicUser && (isOwner || isManager || isSales || isClientCompany || isClientBrand || Boolean(crmUserRole));
 
   const canAccessSetup = isTungstenOwner || isTungstenManager || isPlatformAdmin;
   const canAccessInternalClients = isCrmUser;
@@ -179,39 +211,61 @@ export default function AppLayout({
   }
 
   const roleLabelMap: Record<string, string> = {
-    owner: isClientCompany ? 'مالك الشركة (Company Owner)' : 'مالك Tungsten (Owner)',
-    manager: isClientCompany ? 'مدير الشركة (Company Manager)' : 'مدير مبيعات (Manager)',
-    sales: 'مسؤول مبيعات (Sales)',
-    company_owner: 'مالك الشركة (Company Owner)',
-    company_manager: 'مدير الشركة (Company Manager)',
-    platform_admin: 'مالك Tungsten (Owner)',
+    owner: isClientBrand
+      ? (ar ? 'مالك البراند (Brand Owner)' : 'Brand Owner')
+      : isClientCompany
+      ? (ar ? 'مالك الشركة (Company Owner)' : 'Company Owner')
+      : (ar ? 'مالك Tungsten (Owner)' : 'Tungsten Owner'),
+    manager: isClientBrand
+      ? (ar ? 'مدير البراند (Brand Manager)' : 'Brand Manager')
+      : isClientCompany
+      ? (ar ? 'مدير الشركة (Company Manager)' : 'Company Manager')
+      : (ar ? 'مدير مبيعات (Manager)' : 'Sales Manager'),
+    sales: ar ? 'مسؤول مبيعات (Sales)' : 'Sales Rep',
+    company_owner: ar ? 'مالك الشركة (Company Owner)' : 'Company Owner',
+    company_manager: ar ? 'مدير الشركة (Company Manager)' : 'Company Manager',
+    brand_owner: ar ? 'مالك البراند (Brand Owner)' : 'Brand Owner',
+    brand_manager: ar ? 'مدير البراند (Brand Manager)' : 'Brand Manager',
+    content_creator: ar ? 'صانع محتوى (Content Creator)' : 'Content Creator',
+    videographer_editor: ar ? 'مصور ومونتير (Video Editor)' : 'Video Editor',
+    customer_service: ar ? 'خدمة عملاء (Customer Service)' : 'Customer Service',
+    moderator: ar ? 'مشرف / موديريتور (Moderator)' : 'Moderator',
+    platform_admin: ar ? 'مالك Tungsten (Owner)' : 'Platform Admin',
   };
 
   const clinicRoleRaw = adminStatus.data?.clinic_role || clinic?.role;
   const clinicRoleDisplay = clinicRoleRaw === 'doctor'
-    ? 'طبيب العيادة'
+    ? (ar ? 'طبيب العيادة' : 'Clinic Doctor')
     : clinicRoleRaw === 'admin'
-    ? 'مدير العيادة'
-    : 'طاقم العيادة';
+    ? (ar ? 'مدير العيادة' : 'Clinic Manager')
+    : (ar ? 'طاقم العيادة' : 'Clinic Staff');
 
   const currentRoleDisplay = effectiveClinicUser
     ? clinicRoleDisplay
     : isPlatformAdmin || isTungstenOwner
-    ? 'مالك Tungsten (Owner)'
+    ? (ar ? 'مالك Tungsten (Owner)' : 'Tungsten Owner')
+    : isBrandOwner
+    ? (ar ? 'مالك البراند (Brand Owner)' : 'Brand Owner')
+    : isBrandManager
+    ? (ar ? 'مدير البراند (Brand Manager)' : 'Brand Manager')
     : isCompanyOwner
-    ? 'مالك الشركة (Company Owner)'
+    ? (ar ? 'مالك الشركة (Company Owner)' : 'Company Owner')
     : isCompanyManager
-    ? 'مدير الشركة (Company Manager)'
+    ? (ar ? 'مدير الشركة (Company Manager)' : 'Company Manager')
     : isTungstenManager
-    ? 'مدير مبيعات (Manager)'
+    ? (ar ? 'مدير مبيعات (Manager)' : 'Sales Manager')
     : isSales
-    ? 'مسؤول مبيعات (Sales)'
+    ? (ar ? 'مسؤول مبيعات (Sales)' : 'Sales Rep')
     : (crmUserRole ? roleLabelMap[crmUserRole] || crmUserRole : '');
 
   // Master definition of Top Navigation Tabs
-  type RoleType = 'owner' | 'manager' | 'sales' | 'company_owner' | 'company_manager' | 'clinic';
+  type RoleType = 'owner' | 'manager' | 'sales' | 'company_owner' | 'company_manager' | 'brand_owner' | 'brand_manager' | 'clinic';
   const currentUserRoleKey: RoleType = effectiveClinicUser
     ? 'clinic'
+    : isBrandOwner
+    ? 'brand_owner'
+    : isBrandManager
+    ? 'brand_manager'
     : isCompanyOwner
     ? 'company_owner'
     : isCompanyManager
@@ -223,7 +277,7 @@ export default function AppLayout({
     : isSales
     ? 'sales'
     : isCrmUser
-    ? (isClientCompany ? 'company_owner' : 'owner')
+    ? (isClientBrand ? 'brand_owner' : isClientCompany ? 'company_owner' : 'owner')
     : 'clinic';
 
   interface NavItem {
@@ -244,14 +298,16 @@ export default function AppLayout({
       label: ar ? 'نظرة عامة' : 'Overview',
       icon: LayoutDashboard,
       exact: true,
-      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'clinic'],
+      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'brand_owner', 'brand_manager', 'clinic'],
     },
     {
       id: 'contacts',
       to: isCrmUser ? '/crm/contacts' : '/leads',
-      label: ar ? 'كل العملاء' : 'All Contacts',
-      icon: Users,
-      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'sales', 'clinic'],
+      label: isCrmUser
+        ? (ar ? 'العملاء المحتملون (Leads Pipeline)' : 'Leads Pipeline')
+        : (ar ? 'كل العملاء' : 'All Clients'),
+      icon: isCrmUser ? UserCheck : Users,
+      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'brand_owner', 'brand_manager', 'sales', 'clinic'],
     },
     {
       id: 'companies',
@@ -261,53 +317,46 @@ export default function AppLayout({
       roles: ['owner', 'manager'],
     },
     {
-      id: 'leads',
-      to: '/crm/leads',
-      label: ar ? 'العملاء المحتملون (Leads)' : 'Leads Pipeline',
-      icon: UserCheck,
-      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'sales'],
-    },
-    {
       id: 'deals',
       to: '/crm/deals',
-      label: ar ? 'الصفقات المعتمدة (Deals)' : 'Won Deals',
+      label: ar ? 'الصفقات المعتمدة (Won Deals)' : 'Won Deals',
       icon: Award,
-      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'sales'],
+      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'brand_owner', 'brand_manager', 'sales'],
     },
     {
       id: 'activities',
       to: '/crm/activities',
       label: ar ? 'الأنشطة' : 'Activities',
       icon: CheckSquare,
-      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'sales'],
+      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'brand_owner', 'brand_manager', 'sales'],
     },
     {
       id: 'meetings',
       to: '/crm/meetings',
       label: ar ? 'الاجتماعات' : 'Meetings',
       icon: Calendar,
-      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'sales'],
+      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'brand_owner', 'brand_manager', 'sales'],
     },
     {
       id: 'follow-ups',
       to: '/crm/follow-ups',
       label: ar ? 'المتابعات' : 'Follow-ups',
       icon: Clock,
-      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'sales'],
+      roles: ['owner', 'manager', 'company_owner', 'company_manager', 'brand_owner', 'brand_manager', 'sales'],
     },
     {
       id: 'team',
       to: '/crm/team',
       label: ar ? 'إدارة الفريق' : 'Team Management',
       icon: ShieldCheck,
-      roles: ['owner', 'company_owner', 'manager'],
+      roles: ['owner', 'company_owner', 'brand_owner', 'manager', 'brand_manager'],
     },
     {
       id: 'analytics',
       to: '/crm/analytics',
       label: ar ? 'التحليلات' : 'Analytics',
       icon: BarChart3,
-      roles: ['owner', 'company_owner', 'manager', 'company_manager'],
+      roles: ['owner', 'company_owner', 'brand_owner', 'manager', 'company_manager', 'brand_manager'],
     },
   ];
 
@@ -317,7 +366,7 @@ export default function AppLayout({
   );
 
   return (
-    <div className="page-backdrop min-h-dvh p-2 sm:p-4 xl:p-6" dir="rtl">
+    <div className="page-backdrop min-h-dvh p-2 sm:p-4 xl:p-6" dir={ar ? 'rtl' : 'ltr'}>
       <div className="workspace-frame relative z-10 mx-auto min-h-[calc(100dvh-48px)] max-w-[1720px] rounded-3xl p-3 sm:p-6">
         {/* ========================================================================= */}
         {/* TOP HEADER: BRAND, WORKSPACE SELECTOR, USER INFO, PREFERENCES, LOGOUT */}
@@ -334,17 +383,19 @@ export default function AppLayout({
               )}
               {effectiveClinicUser && (
                 <span className="hidden sm:inline-flex rounded-xl bg-purple-500/10 border border-purple-500/30 px-2.5 py-1 text-xs font-bold text-purple-600 shadow-sm">
-                  عيادات تنجستين
+                  {ar ? 'عيادات تنجستين' : 'Tungsten Clinics'}
                 </span>
               )}
             </div>
 
             {/* Right: Workspace Switcher, Role Badge, Preferences, Logout */}
             <div className="flex items-center gap-3">
-              {/* Workspace Indicator (Fixed per company account, no unwanted switching) */}
+              {/* Workspace Indicator (Fixed per company/brand account, no unwanted switching) */}
               {isCrmUser && activeWorkspace && (
                 <div className="flex items-center gap-1.5 rounded-xl border border-line bg-surface px-3 py-1.5 text-xs font-bold text-ink shadow-sm">
-                  {isClientCompany ? (
+                  {isClientBrand ? (
+                    <Sparkles className="h-3.5 w-3.5 text-cyan-500 shrink-0" />
+                  ) : isClientCompany ? (
                     <Building2 className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                   ) : (
                     <Shield className="h-3.5 w-3.5 text-amber-500 shrink-0" />

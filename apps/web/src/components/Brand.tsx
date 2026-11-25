@@ -1,13 +1,15 @@
 export default function Brand() {
   return (
     <div className="flex items-center gap-2.5 whitespace-nowrap" dir="ltr">
-      <span className="grid size-9 place-items-center rounded-xl bg-ink text-lg font-semibold text-canvas">
-        t
-      </span>
+      <img
+        src="/tungsten-logo.png"
+        alt="Tungsten Logo"
+        className="size-9 rounded-full shadow-sm object-contain shrink-0"
+      />
 
       <span className="text-lg font-semibold tracking-tight">
-        tungsten
-        <span className="ms-1 text-muted">crm</span>
+        Tungsten
+        <span className="ms-1 text-muted">CRM</span>
       </span>
     </div>
   );
